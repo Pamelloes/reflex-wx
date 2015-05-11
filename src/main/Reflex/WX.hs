@@ -6,5 +6,11 @@ License     : wxWindows Library License
 Maintainer  : joshuabrot@gmail.com
 Stability   : Experimental
 -}
-module Reflex.WX (
+module Reflex.WX ( module Reflex
+                 , module Reflex.WX.Class
+                 , module Reflex.WX.Internal
                  ) where
+
+import Reflex
+import Reflex.WX.Class
+import Reflex.WX.Internal
