@@ -14,17 +14,20 @@ cabal-version:       >=1.10
 
 
 library
-  build-depends:       base   >=4.7 && <4.8,
+  build-depends:       base   >= 4.8 && <4.9,
+                       mtl    >= 2.1 && <2.3,
                        reflex == 0.2.*,
-                       wxcore == 0.91.*,
-                       wx     == 0.91.*
+                       wxcore == 0.92.*,
+                       wx     == 0.92.*
   hs-source-dirs:      src/main
   default-language:    Haskell2010
 
   exposed-modules:     Reflex.WX
 executable example
   main-is:             Main.hs
-  build-depends:       base   >=4.7 && <4.8,
-                       reflex-wx
+  build-depends:       base   >=4.8 && <4.9,
+                       reflex-wx,
+                       wxcore == 0.92.*,
+                       wx     == 0.92.*
   hs-source-dirs:      src/test
   default-language:    Haskell2010

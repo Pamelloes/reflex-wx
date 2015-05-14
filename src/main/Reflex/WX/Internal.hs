@@ -8,4 +8,6 @@ Stability   : Experimental
 module Reflex.WX.Internal (
                           ) where
 
+import Graphics.UI.WXCore.Layout
+
 import Reflex.WX.Class
