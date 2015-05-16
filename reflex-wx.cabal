@@ -14,11 +14,12 @@ cabal-version:       >=1.10
 
 
 library
-  build-depends:       base   >= 4.8 && <4.9,
-                       mtl    >= 2.1 && <2.3,
-                       reflex == 0.2.*,
-                       wxcore == 0.92.*,
-                       wx     == 0.92.*
+  build-depends:       base         >= 4.8 && <4.9,
+                       mtl          >= 2.1 && <2.3,
+                       transformers == 0.4.*,
+                       reflex       == 0.2.*,
+                       wxcore       == 0.92.*,
+                       wx           == 0.92.*
   hs-source-dirs:      src/main
   default-language:    Haskell2010
 

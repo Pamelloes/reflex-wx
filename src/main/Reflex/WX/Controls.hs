@@ -6,77 +6,37 @@ License     : wxWindows Library License
 Maintainer  : joshuabrot@gmail.com
 Stability   : Experimental
 -}
-{-# LANGUAGE RankNTypes #-}
-module Reflex.WX.Controls ( panel
-                          , notebook
+{-# LANGUAGE MultiParamTypeClasses, RecursiveDo, RankNTypes #-}
+module Reflex.WX.Controls ( frame
                           , button
-                          , smallButton
-                          , bitmapButton
-                          , entry
-                          , textEntry
-                          , textCtrl
-                          , textCtrlRich
-                          , checkBox
-                          , choice
-                          , comboBox
-                          , singleListBox
-                          , multiListBox
-                          , toggleButton
-                          , bitmapToggleButton
-                          , treeCtrl
-                          , listCtrl
                           , staticText
-                          , splitterWindow
-                          , mediaCtrl
-                          , styledTextCtrl
-                          , propertyGrid
                           ) where
 
-import Reflex.WX.Class
+import Control.Monad.Fix
+import Control.Monad.IO.Class
 
-import qualified Graphics.UI.WX.Controls as C
-import Graphics.UI.WX.Layout
-import Graphics.UI.WX.Window
+import qualified Graphics.UI.WX as W
+import qualified Graphics.UI.WXCore as W
+
+import Reflex
+import Reflex.WX.Class
 
 --type Component w m = Window w -> m Layout
 
-tocomp :: (Functor m, Widget b) => (Window w -> a -> m b) -> a -> Component w m
-tocomp = fmap (fmap (fmap widget)) . flip
+fromwc :: (W.Widget w, Reflex t, Monad m, MonadIO m, MonadFix m, MonadSample t m) => 
+          (W.Window a -> [W.Prop w] -> IO(w)) -> [Prop t w] 
+            -> Component a (ComponentM t m)
+fromwc f p w = do rec prop <- sequence $ fmap (towp x) p
+                      x <- liftIO $ f w prop
+                  return (W.widget x)
 
-panel    = tocomp C.panel
-notebook = tocomp C.notebook
+frame :: [Prop t (W.Frame ())] -> Component (W.CFrame ()) m -> Component w (ComponentM t m)
+frame = undefined
 
-button       = tocomp C.button
-smallButton  = tocomp C.smallButton
-bitmapButton = tocomp C.bitmapButton
+button :: (Reflex t, Monad m, MonadIO m, MonadFix m, MonadSample t m) => 
+          [Prop t (W.Button ())] -> Component w (ComponentM t m)
+button = fromwc W.button
 
-entry        = tocomp C.entry
-textEntry    = tocomp C.textEntry
-textCtrl     = tocomp C.textCtrl
-textCtrlRich = tocomp C.textCtrlRich
-
-checkBox = tocomp C.checkBox
-
-choice = tocomp C.choice
-
-comboBox = tocomp C.comboBox
-
-singleListBox = tocomp C.singleListBox
-multiListBox  = tocomp C.multiListBox
-
-toggleButton       = tocomp C.toggleButton
-bitmapToggleButton = tocomp C.bitmapToggleButton
-
-treeCtrl = tocomp C.treeCtrl
-
-listCtrl = tocomp C.listCtrl
-
-staticText = tocomp C.staticText
-
-splitterWindow = tocomp C.splitterWindow
-
-mediaCtrl = tocomp C.mediaCtrl
-
-styledTextCtrl = tocomp C.styledTextCtrl
-
-propertyGrid = tocomp C.propertyGrid
+staticText :: (Reflex t, Monad m, MonadIO m, MonadFix m, MonadSample t m) => 
+              [Prop t (W.StaticText())] -> Component w (ComponentM t m)
+staticText = fromwc W.staticText
