@@ -9,27 +9,16 @@ Stability   : Experimental
 module Main where
 
 import Reflex.WX
+import Graphics.UI.WX (text,Frame)
 
-import Graphics.UI.WXCore
-import Graphics.UI.WX (set, frame, start, text, layout, Prop (..))
-
-crow :: forall w.Int -> [Component w IO] -> Component w IO
-crow i = fmap (fmap (row i).sequence).sequence
-
-content = crow 10 $
-  [ button [ text := "Ok" ]
-  , button [ text := "Cancel" ]
-  , button [ text := "Swag" ]
-  , staticText [ text := "Bitchez" ]
-  ]
-
-render :: Component (CTopLevelWindow (CFrame ())) IO -> IO ()
-render c = start $ do
-  f <- frame [text := "test"]
-  l <- c f
-  set f [ layout := l ]
+program :: (MonadComponent t m) => m (Component t (Frame ()),())
+program = frame [text := "swag"] $ do
+  b <- button [text := "click"]
+  cmd <- command b
+  ct <- count cmd
+  dyn <- mapDyn (show) ct
+  staticText [text :~ dyn]
   return ()
---  set f [layout := widget ch]
 
 main :: IO ()
-main = render content
+main = undefined

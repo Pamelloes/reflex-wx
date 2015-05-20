@@ -7,15 +7,15 @@ Maintainer  : joshuabrot@gmail.com
 Stability   : Experimental
 -}
 {-# LANGUAGE ExistentialQuantification, FlexibleInstances #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving, MultiParamTypeClasses #-}
+{-# LANGUAGE FunctionalDependencies, GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE ImpredicativeTypes, MultiParamTypeClasses #-}
 {-# LANGUAGE RankNTypes #-}
 module Reflex.WX.Class ( Prop (..)
---                       , get
+                       , Component (..)
+                       , AnyWindow (..)
+                       , MonadComponent (..)
                        , towp
-                       , Component
-                       , ComponentM
-                       , addVoidAction
-                       , registerProp
+                       , wrapEvent
                        ) where
 
 import Control.Monad
@@ -23,43 +23,45 @@ import Control.Monad.Fix
 import Control.Monad.IO.Class
 import Control.Monad.State
 
-import Reflex
-
 import qualified Graphics.UI.WX as W
+
+import Reflex
+import Reflex.Host.Class
 
 data Prop t w = forall a. W.Attr w a := a
               | forall a. W.Attr w a :~ Dynamic t a
+newtype Component t w = Component (w,[Prop t w])
 
-towp :: (Reflex t, MonadSample t m, MonadIO m, Monad m) => w -> Prop t w
-        -> ComponentM t m (W.Prop w)
+data AnyWindow = forall w. AW (W.Window w)
+
+class ( Reflex t, MonadIO m, MonadSample t m, MonadHold t m
+      , MonadReflexCreateTrigger t m, MonadFix m) => MonadComponent t m | m -> t where
+  askParent      :: m AnyWindow
+  addIOEvent     :: Event t (m ()) -> m ()
+
+  pushComponents ::  AnyWindow -> m ()
+  setLayout      :: ([W.Layout] -> W.Layout) -> m ()
+  addComponent   :: (W.Widget w) => Component t w -> m ()
+  popComponents  :: m (W.Layout)
+
+towp :: MonadComponent t m => w -> Prop t w -> m (W.Prop w)
 towp w (a := v) = return $ a W.:= v
 towp w (a :~ v) = do
-  addVoidAction $ fmap (\x -> liftIO $ W.set w [a W.:= x]) (updated v)
+  addIOEvent $ fmap (\x -> liftIO $ W.set w [a W.:= x]) (updated v)
   cv <- sample $ current v
   return $ a W.:= cv
 
---get :: w -> W.Attr w a -> Behavior t a
---get = undefined
-
-type Component w m = W.Window w -> m W.Layout
-
-data ComponentState t m = ComponentState {
-  voidActions :: [Event t (m ())]
-}
-
-type ComponentInternal t m a = StateT (ComponentState t m) m a
-
-newtype ComponentM t m a = ComponentM { unCM :: ComponentInternal t m a}
-  deriving (Functor, Applicative, Monad, MonadFix, MonadIO)
-instance MonadSample t m => MonadSample t (ComponentM t m) where
-  sample = ComponentM . lift . sample
-
-addVoidAction ::  Monad m => Event t (m ()) -> ComponentM t m ()
-addVoidAction e = ComponentM $ modify (\(ComponentState a)->ComponentState (e:a))
-
-registerProp :: (Reflex t, Monad m, MonadIO m, MonadSample t m) => [Prop t w] 
-                 -> w -> ComponentM t m ()
-registerProp p w = do
-  props <- sequence $ fmap (towp w) p
-  liftIO $ W.set w props
-  return ()
+wrapEvent :: MonadComponent t m => 
+             W.Event w (IO ()) -> Component t w -> m (Event t ())
+wrapEvent e (Component (w,_)) = do
+  {-let k=hash (e,w)
+  h <- ComponentM $ gets (\(a@ComponentState{eventMap=e}) -> M.member k e)
+  if h then
+    ComponentM $ gets (\(ComponentState{eventMap=e}) -> event (e M.! k) )
+  else do-}
+    n <- newEventWithTrigger $ \et -> do
+           --W.set w [W.on e W.:= fireEvents [ et :=> 
+           return $ W.set w [ W.on e W.:= W.propagateEvent ]
+    --ComponentM $ modify (\(a@ComponentState{eventMap=e})
+    --                      ->a{eventMap=M.insert k (AnyEvent n) e})
+    return n

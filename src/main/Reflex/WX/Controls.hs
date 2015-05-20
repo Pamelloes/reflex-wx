@@ -6,10 +6,13 @@ License     : wxWindows Library License
 Maintainer  : joshuabrot@gmail.com
 Stability   : Experimental
 -}
-{-# LANGUAGE MultiParamTypeClasses, RecursiveDo, RankNTypes #-}
+{-# LANGUAGE FlexibleContexts, MultiParamTypeClasses, RecursiveDo #-}
+{-# LANGUAGE RankNTypes #-}
 module Reflex.WX.Controls ( frame
+                          , panel
                           , button
                           , staticText
+                          , command
                           ) where
 
 import Control.Monad.Fix
@@ -21,22 +24,50 @@ import qualified Graphics.UI.WXCore as W
 import Reflex
 import Reflex.WX.Class
 
---type Component w m = Window w -> m Layout
+fromwc :: (W.Widget w, MonadComponent t m) => 
+          (forall a. W.Window a -> [W.Prop w] -> IO(w)) -> [Prop t w] 
+            -> m (Component t w)
+fromwc f p = do 
+  (AW w) <- askParent
+  rec prop <- sequence $ fmap (towp x) p
+      x    <- liftIO $ f w prop
+  let c = Component (x,p)
+  addComponent c
+  return c
 
-fromwc :: (W.Widget w, Reflex t, Monad m, MonadIO m, MonadFix m, MonadSample t m) => 
-          (W.Window a -> [W.Prop w] -> IO(w)) -> [Prop t w] 
-            -> Component a (ComponentM t m)
-fromwc f p w = do rec prop <- sequence $ fmap (towp x) p
-                      x <- liftIO $ f w prop
-                  return (W.widget x)
+fromwf :: forall w t m b. (W.Form (W.Window w), MonadComponent t m) => 
+          (forall a. W.Window a -> [W.Prop (W.Window w)] -> IO (W.Window w))
+            -> [Prop t (W.Window w)] -> m b -> m (Component t (W.Window w),b)
+fromwf f p c = do 
+  (AW w) <- askParent
+  rec prop <- sequence $ fmap (towp x) p
+      x    <- liftIO $ f w prop
 
-frame :: [Prop t (W.Frame ())] -> Component (W.CFrame ()) m -> Component w (ComponentM t m)
-frame = undefined
+  pushComponents (AW x)
+  a <- c
+  l <- popComponents
+  liftIO $ W.set x [W.layout W.:= l]
 
-button :: (Reflex t, Monad m, MonadIO m, MonadFix m, MonadSample t m) => 
-          [Prop t (W.Button ())] -> Component w (ComponentM t m)
+  let cp = Component (x,p)
+  addComponent cp
+  return (cp,a)
+         
+frame :: (MonadComponent t m) => 
+         [Prop t (W.Frame ())] -> m a -> m (Component t (W.Frame ()),a)
+frame = fromwf $ const W.frame
+
+panel :: (MonadComponent t m) => 
+         [Prop t (W.Panel ())] -> m a -> m (Component t (W.Panel ()),a)
+panel = fromwf W.panel
+
+button :: (MonadComponent t m) => 
+          [Prop t (W.Button ())] -> m (Component t (W.Button ()))
 button = fromwc W.button
 
-staticText :: (Reflex t, Monad m, MonadIO m, MonadFix m, MonadSample t m) => 
-              [Prop t (W.StaticText())] -> Component w (ComponentM t m)
+staticText :: (MonadComponent t m) => 
+          [Prop t (W.StaticText ())] -> m (Component t (W.StaticText ()))
 staticText = fromwc W.staticText
+
+command :: (W.Commanding w, MonadComponent t m) => 
+           Component t w -> m (Event t ())
+command = wrapEvent W.command
