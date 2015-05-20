@@ -9,7 +9,7 @@ Stability   : Experimental
 {-# LANGUAGE FunctionalDependencies, GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ImpredicativeTypes, MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies, RankNTypes #-}
-module Reflex.WX.Internal (
+module Reflex.WX.Internal (host
                           ) where
 
 import Control.Monad.Fix
@@ -79,32 +79,12 @@ instance (Reflex t, MonadIO m, MonadSample t m, MonadHold t m
                         let ls = fmap (\(AC (Component (l,_)))->W.widget l) c
                         ComponentM $ put s{parent=p,lay=m,comp=n,compst=cs}
                         return $ l ls
-{-
-addVoidAction ::  Monad m => Event t (m ()) -> ComponentM t m ()
-addVoidAction e = ComponentM $ modify (\(s@ComponentState{voidActions=a})
-                                        ->s{voidActions=e:a})
 
-registerProp :: (Reflex t, MonadSample t m, MonadIO m) => [Prop t w] 
-                 -> w -> ComponentM t m ()
-registerProp p w = do
-  props <- sequence $ fmap (towp w) p
-  liftIO $ W.set w props
+host :: ComponentM Spider (HostFrame Spider) (Component Spider (W.Frame ())) 
+        -> IO ()
+host c = do
+  runSpiderHost $ do
+    let istate = ComponentState undefined [] undefined [] []
+    ((Component (w,_)),s) <- runHostFrame $ runStateT (unCM c) istate
+    liftIO $ W.start (return w)
   return ()
-
-
-wrapEvent :: forall w t m. (MonadReflexCreateTrigger t m,Monad m) => 
-             W.Event (W.Object w) (IO ()) -> (W.Object w) -> ComponentM t m (Event t ())
-wrapEvent e w = do
-  {-let k=hash (e,w)
-  h <- ComponentM $ gets (\(a@ComponentState{eventMap=e}) -> M.member k e)
-  if h then
-    ComponentM $ gets (\(ComponentState{eventMap=e}) -> event (e M.! k) )
-  else do-}
-    n <- newEventWithTrigger $ \et -> do
-           --W.set w [W.on e W.:= fireEvents [ et :=> 
-           return $ W.set w [ W.on e W.:= W.propagateEvent ]
-    --ComponentM $ modify (\(a@ComponentState{eventMap=e})
-    --                      ->a{eventMap=M.insert k (AnyEvent n) e})
-    return n
-
--}

@@ -24,6 +24,21 @@ import qualified Graphics.UI.WXCore as W
 import Reflex
 import Reflex.WX.Class
 
+frame :: (MonadComponent t m) => 
+         [Prop t (W.Frame ())] -> m a -> m (Component t (W.Frame ()),a)
+frame p c = do
+  rec prop <- sequence $ fmap (towp x) p
+      x    <- liftIO $ W.frame prop
+
+  pushComponents (AW x)
+  a <- c
+  l <- popComponents
+  liftIO $ W.set x [W.layout W.:= l]
+
+  let cp = Component (x,p)
+  addComponent cp
+  return (cp,a)
+
 fromwc :: (W.Widget w, MonadComponent t m) => 
           (forall a. W.Window a -> [W.Prop w] -> IO(w)) -> [Prop t w] 
             -> m (Component t w)
@@ -52,9 +67,6 @@ fromwf f p c = do
   addComponent cp
   return (cp,a)
          
-frame :: (MonadComponent t m) => 
-         [Prop t (W.Frame ())] -> m a -> m (Component t (W.Frame ()),a)
-frame = fromwf $ const W.frame
 
 panel :: (MonadComponent t m) => 
          [Prop t (W.Panel ())] -> m a -> m (Component t (W.Panel ()),a)

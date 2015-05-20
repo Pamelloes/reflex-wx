@@ -21,4 +21,4 @@ program = frame [text := "swag"] $ do
   return ()
 
 main :: IO ()
-main = undefined
+main = host $ fmap fst program

@@ -24,7 +24,10 @@ library
   hs-source-dirs:      src/main
   default-language:    Haskell2010
 
-  exposed-modules:     Reflex.WX
+  exposed-modules:     Reflex.WX,
+                       Reflex.WX.Class,
+                       Reflex.WX.Controls,
+                       Reflex.WX.Internal
 executable example
   main-is:             Main.hs
   build-depends:       base         >=4.8 && <4.9,
