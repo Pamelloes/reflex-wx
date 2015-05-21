@@ -36,7 +36,7 @@ frame p c = do
   liftIO $ W.set x [W.layout W.:= l]
 
   let cp = Component (x,p)
-  addComponent cp
+  --addComponent cp
   return (cp,a)
 
 fromwc :: (W.Widget w, MonadComponent t m) => 

@@ -12,79 +12,94 @@ Stability   : Experimental
 module Reflex.WX.Internal (host
                           ) where
 
+import Control.Concurrent.MVar
+
 import Control.Monad.Fix
 import Control.Monad.IO.Class
 import Control.Monad.State
 
+import Data.Dependent.Sum
+
 import qualified Graphics.UI.WX as W
+import qualified Graphics.UI.WXCore as W
 
 import Reflex
 import Reflex.Host.Class
 import Reflex.WX.Class
 
-{-
-data Prop t w = forall a. W.Attr w a := a
-              | forall a. W.Attr w a :~ Dynamic t a
-newtype Component t w = Component (W.Layout,[Prop t w])
-
-class ( Reflex t, MonadIO m, MonadSample t m, MonadReflexCreateTrigger t m
-      , MonadFix m) => MonadComponent t m | m -> t where
-  askParent      :: m (forall a. W.Window a)
-  addIOEvent     :: Event t (m ()) -> m ()
-
-  pushComponents :: forall a. W.Window a -> m ()
-  setLayout      :: ([W.Layout] -> W.Layout) -> m ()
-  addComponent   :: forall w. Component t w -> m ()
-  popComponents  :: m (W.Layout)
--}
-
 data AnyComp t = forall w. (W.Widget w) => AC (Component t w)
 
-data ComponentState t m = ComponentState {
+data ComponentState t = ComponentState {
+  mvar    :: MVar [DSum (EventTrigger t)],
   parent  :: AnyWindow,
-  ioEvent :: [Event t (m ())],
+  ioEvent :: [Event t (IO ())],
   lay     :: [W.Layout] -> W.Layout,
   comp    :: [AnyComp t],
   compst  :: [(AnyWindow,[W.Layout]->W.Layout,[AnyComp t])]
 }
 
-type ComponentInternal t m1 m = StateT (ComponentState t m1) m
+type ComponentInternal t m = StateT (ComponentState t) m
 
-newtype ComponentM t m a = ComponentM { unCM :: ComponentInternal t (ComponentM t m) m a }
-  deriving (Functor, Applicative, Monad, MonadIO, MonadFix)
-instance (Reflex t, MonadSample t m) => MonadSample t (ComponentM t m) where
+newtype ComponentM t m a = ComponentM { 
+  unCM :: ComponentInternal t m a
+} deriving (Functor, Applicative, Monad, MonadIO, MonadFix)
+instance MonadSample t m => MonadSample t (ComponentM t m) where
   sample = ComponentM . lift . sample
-instance (Reflex t, MonadHold t m) => MonadHold t (ComponentM t m) where
+instance MonadHold t m => MonadHold t (ComponentM t m) where
   hold a = ComponentM . lift . (hold a)
-instance (Reflex t, MonadReflexCreateTrigger t m) =>
+instance MonadReflexCreateTrigger t m =>
          MonadReflexCreateTrigger t (ComponentM t m) where
   newEventWithTrigger = ComponentM . lift . newEventWithTrigger
-instance (Reflex t, MonadIO m, MonadSample t m, MonadHold t m
-         ,MonadReflexCreateTrigger t m, MonadFix m) => MonadComponent t (ComponentM t m) where
-  askParent        = do
-                        ComponentState{parent=p} <- ComponentM $ get
-                        return p
-  addIOEvent e     = ComponentM $ modify (\(s@ComponentState{ioEvent=i})->
-                                       s{ioEvent=e:i})
+{-
+instance MonadReflexHost t m => MonadReflexHost t (ComponentM t m) where
+  fireEventsAndRead dm a = ComponentM . lift $ fireEventsAndRead dm a
+  subscribeEvent         = ComponentM . lift . subscribeEvent
+  runFrame               = ComponentM . lift . runFrame
+  runHostFrame           = ComponentM . lift . runHostFrame
+-}
+instance (Reflex t, MonadIO m, MonadHold t m, MonadReflexCreateTrigger t m
+         ,MonadFix m) => MonadComponent t (ComponentM t m) where
+  askParent         = do
+                         ComponentState{parent=p} <- ComponentM $ get
+                         return p
+  addIOEvent e      = ComponentM $ modify (\(s@ComponentState{ioEvent=i})->
+                                        s{ioEvent=e:i})
 
-  pushComponents n = ComponentM $ modify f
+  pushComponents n  = ComponentM $ modify f
     where f (s@ComponentState{parent=p,lay=l,comp=c,compst=cs})
             = s{parent=n,lay=W.row 10,comp=[],compst=(p,l,c):cs}
-  setLayout l      = ComponentM $ modify (\s->s{lay=l})
-  addComponent c   = ComponentM $ modify (\(s@ComponentState{comp=i})->
-                                         s{comp=(AC c):i})
-  popComponents    = do
-                        s@(ComponentState _ _ l c (h:cs)) <- ComponentM $ get
+  setLayout l       = ComponentM $ modify (\s->s{lay=l})
+  addComponent c    = ComponentM $ modify (\(s@ComponentState{comp=i})->
+                                          s{comp=(AC c):i})
+  popComponents     = do
+                        s@(ComponentState _ _ _ l c (h:cs)) <- ComponentM $ get
                         let (p,m,n)=h
                         let ls = fmap (\(AC (Component (l,_)))->W.widget l) c
                         ComponentM $ put s{parent=p,lay=m,comp=n,compst=cs}
-                        return $ l ls
-
-host :: ComponentM Spider (HostFrame Spider) (Component Spider (W.Frame ())) 
-        -> IO ()
-host c = do
+                        return $ l (reverse ls)
+  fireEvents f = do
+                        ComponentState{mvar=v} <- ComponentM $ get
+                        return $ \a -> putMVar v (f a)
+host :: ComponentM Spider (HostFrame Spider) a -> IO ()
+host c = W.start $ do
   runSpiderHost $ do
-    let istate = ComponentState undefined [] undefined [] []
-    ((Component (w,_)),s) <- runHostFrame $ runStateT (unCM c) istate
-    liftIO $ W.start (return w)
-  return ()
+    v <- liftIO $ newEmptyMVar
+    let istate = ComponentState v undefined [] undefined [] []
+
+    (_,s) <- runHostFrame $ runStateT (unCM c) istate
+    let ComponentState{ioEvent = ie} = s
+
+    ieh <- subscribeEvent $ mergeWith (>>) ie
+    forever $ do
+      liftIO $ W.wxcAppYield
+      e <- liftIO $ tryTakeMVar v
+      case e of
+        Just e -> do
+                    io <- fireEventsAndRead e $ do
+                            r <- readEvent ieh
+                            case r of
+                              Just f  -> f
+                              Nothing -> return $ return ()
+                    liftIO $ io
+        Nothing -> return ()
+    return ()
