@@ -80,6 +80,13 @@ instance (Reflex t, MonadIO m, MonadHold t m, MonadReflexCreateTrigger t m
   fireEvents f = do
                         ComponentState{mvar=v} <- ComponentM $ get
                         return $ \a -> putMVar v (f a)
+
+whileM :: Monad m => (m Bool) -> m a -> m ()
+whileM c l = do
+  v <- c
+  if v then l >> whileM c l
+  else return ()
+
 host :: ComponentM Spider (HostFrame Spider) a -> IO ()
 host c = W.start $ do
   runSpiderHost $ do
@@ -90,10 +97,10 @@ host c = W.start $ do
     let ComponentState{ioEvent = ie} = s
 
     ieh <- subscribeEvent $ mergeWith (>>) ie
-    forever $ do
+    whileM (liftIO W.wxcAppGetTopWindow >>= return . (/=W.objectNull)) $ do
       liftIO $ W.wxcAppYield
       e <- liftIO $ tryTakeMVar v
-      case e of
+      case (e) of
         Just e -> do
                     io <- fireEventsAndRead e $ do
                             r <- readEvent ieh
@@ -102,4 +109,5 @@ host c = W.start $ do
                               Nothing -> return $ return ()
                     liftIO $ io
         Nothing -> return ()
+    liftIO $ W.wxcAppExit
     return ()
