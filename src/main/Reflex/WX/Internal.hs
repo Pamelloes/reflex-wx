@@ -25,7 +25,7 @@ import qualified Graphics.UI.WXCore as W
 
 import Reflex
 import Reflex.Host.Class
-import Reflex.WX.Class
+import Reflex.WX.Class hiding (get)
 
 data AnyComp t = forall w. (W.Widget w) => AC (Component t w)
 

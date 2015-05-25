@@ -8,13 +8,13 @@ Stability   : Experimental
 -}
 module Reflex.WX ( module Reflex
                  , module Reflex.WX.Class
---                 , module Reflex.WX.Attributes
+                 , module Reflex.WX.Attributes
                  , module Reflex.WX.Controls
                  , module Reflex.WX.Internal
                  ) where
 
-import Reflex
+import Reflex hiding (select) -- Alternatively, rename Attributes.select
 import Reflex.WX.Class
---import Reflex.WX.Attributes
+import Reflex.WX.Attributes
 import Reflex.WX.Controls
 import Reflex.WX.Internal

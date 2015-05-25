@@ -12,7 +12,6 @@ module Reflex.WX.Controls ( frame
                           , panel
                           , button
                           , staticText
-                          , command
                           ) where
 
 import Control.Monad.Fix
@@ -80,6 +79,8 @@ staticText :: (MonadComponent t m) =>
           [Prop t (W.StaticText ())] -> m (Component t (W.StaticText ()))
 staticText = fromwc W.staticText
 
+{-
 command :: (W.Commanding w, MonadComponent t m) => 
            Component t w -> m (Event t ())
 command = wrapEvent W.command
+-}
