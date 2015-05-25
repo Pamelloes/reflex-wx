@@ -24,20 +24,22 @@ import Control.Monad.IO.Class
 import Control.Monad.State
 
 import Data.Dependent.Sum
+import qualified Data.Dynamic as D
+import Data.Typeable
 
 import qualified Graphics.UI.WX as W
 
 import Reflex
 import Reflex.Host.Class hiding (fireEvents)
 
-data Prop t w = forall a. W.Attr w a := a
-              | forall a. W.Attr w a :~ Dynamic t a
+data Prop t w = forall a. Typeable a => W.Attr w a := a
+              | forall a. Typeable a => W.Attr w a :~ Dynamic t a
 newtype Component t w = Component (w,[Prop t w])
 
 data AnyWindow = forall w. AW (W.Window w)
 
-class (Reflex t, MonadIO m, MonadHold t m, MonadReflexCreateTrigger t m, MonadFix m) =>
-      MonadComponent t m | m -> t where
+class (Reflex t, MonadIO m, MonadHold t m, MonadReflexCreateTrigger t m
+      ,MonadFix m) => MonadComponent t m | m -> t where
   askParent       :: m AnyWindow
   addIOEvent      :: Event t (IO ()) -> m ()
 
@@ -47,6 +49,43 @@ class (Reflex t, MonadIO m, MonadHold t m, MonadReflexCreateTrigger t m, MonadFi
   popComponents   :: m (W.Layout)
 
   fireEvents      :: (a -> [DSum (EventTrigger t)]) -> m (a -> IO ())
+
+get :: forall a t m w. (Typeable a, Typeable t, MonadComponent t m) => 
+       W.Attr w a -> Component t w -> m (Behavior t a)
+get a (Component (w,p)) = do
+  let name = W.attrName a
+
+  let walk :: [Prop t w] -> m (Maybe (Behavior t a))
+      walk [] = return Nothing
+      walk ((b := x):r)
+        | name == n = case D.fromDynamic (D.toDyn x) of
+                        Just x  -> return $ Just (constant x)
+                        Nothing -> walk r
+        where n  = W.attrName b
+      walk ((b :~ x):r)
+        | name == n = case D.fromDynamic (D.toDyn x) of
+                        Just x  -> return $ Just x
+                        Nothing -> walk r
+        where n  = W.attrName b
+      {-
+      walk (((W.Attr a (Just (tdn,fdn)) _ _ _) := x):r) | name == a
+        = case fromDynamic (todyn x) of
+            Just x  -> return $ Just x
+            Nothing -> walk r
+      walk (((W.Attr a (Just (tdn,fdn)) _ _ _) :~ x):r) | name == a
+        = do
+            cx <- current x
+            case fromDynamic (todyn cx) of
+              Just x  -> return $ Just x
+              Nothing -> walk r
+      -}
+      walk (_:r) = walk r
+  mv <- walk p
+  case mv of
+    Just mv -> return mv
+    Nothing -> do
+                 c <- liftIO $ W.get w a
+                 return $ constant c
 
 towp :: MonadComponent t m => w -> Prop t w -> m (W.Prop w)
 towp w (a := v) = return $ a W.:= v
