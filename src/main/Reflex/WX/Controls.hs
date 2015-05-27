@@ -6,12 +6,10 @@ License     : wxWindows Library License
 Maintainer  : joshuabrot@gmail.com
 Stability   : Experimental
 -}
-{-# LANGUAGE FlexibleContexts, MultiParamTypeClasses, RecursiveDo #-}
-{-# LANGUAGE RankNTypes #-}
-module Reflex.WX.Controls ( frame
-                          , panel
-                          , button
-                          , staticText
+{-# LANGUAGE FlexibleInstances, MultiParamTypeClasses, RecursiveDo #-}
+{-# LANGUAGE RankNTypes, TypeSynonymInstances #-}
+module Reflex.WX.Controls ( Window
+                          , window
                           ) where
 
 import Control.Monad.Fix
@@ -22,7 +20,32 @@ import qualified Graphics.UI.WXCore as W
 
 import Reflex
 import Reflex.WX.Class
+import Reflex.WX.Attributes
 
+fromwc :: (W.Widget w, MonadComponent t m) => 
+          (forall a. W.Window a -> [W.Prop w] -> IO(w)) -> [Prop t w] 
+            -> m (Component t w)
+fromwc f p = do 
+  (AW w) <- askParent
+  rec prop <- sequence $ fmap (towp x) p
+      x    <- liftIO $ f w prop
+  let c = Component (x,p)
+  addComponent c
+  return c
+
+type Window t a = Component t (W.Window a)
+
+window :: (MonadComponent t m) => 
+          [Prop t (W.Window ())] -> m (Window t ())
+window = fromwc W.window
+
+tabTraversal :: Attr t (W.Window a) Bool
+tabTraversal = fromwa W.tabTraversal
+
+instance Able t (Component t) (W.Window a) where
+  enabled = fromwa W.enabled
+
+{-
 frame :: (MonadComponent t m) => 
          [Prop t (W.Frame ())] -> m a -> m (Component t (W.Frame ()),a)
 frame p c = do
@@ -38,16 +61,6 @@ frame p c = do
   --addComponent cp
   return (cp,a)
 
-fromwc :: (W.Widget w, MonadComponent t m) => 
-          (forall a. W.Window a -> [W.Prop w] -> IO(w)) -> [Prop t w] 
-            -> m (Component t w)
-fromwc f p = do 
-  (AW w) <- askParent
-  rec prop <- sequence $ fmap (towp x) p
-      x    <- liftIO $ f w prop
-  let c = Component (x,p)
-  addComponent c
-  return c
 
 fromwf :: forall w t m b. (W.Form (W.Window w), MonadComponent t m) => 
           (forall a. W.Window a -> [W.Prop (W.Window w)] -> IO (W.Window w))
@@ -83,4 +96,5 @@ staticText = fromwc W.staticText
 command :: (W.Commanding w, MonadComponent t m) => 
            Component t w -> m (Event t ())
 command = wrapEvent W.command
+-}
 -}

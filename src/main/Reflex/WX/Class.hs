@@ -10,11 +10,16 @@ Stability   : Experimental
 {-# LANGUAGE FunctionalDependencies, GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ImpredicativeTypes, MultiParamTypeClasses #-}
 {-# LANGUAGE RankNTypes, ScopedTypeVariables #-}
-module Reflex.WX.Class ( Attr (..)
-                       , Prop (..)
+module Reflex.WX.Class ( AttrC (..)
+                       , Attr
+                       , PropC (..)
+                       , Prop
                        , Component (..)
                        , AnyWindow (..)
                        , MonadComponent (..)
+                       , find
+                       , dget
+                       , fromwa
                        , towp
                        , wrapEvent
                        ) where
@@ -33,19 +38,22 @@ import qualified Graphics.UI.WX as W
 import Reflex
 import Reflex.Host.Class hiding (fireEvents)
 
-data Attr t w a = Attr {
-  get :: forall m. MonadComponent t m => Component t w -> m (Dynamic t a),
+data AttrC t c w a = Attr {
+  get :: forall m. MonadComponent t m => c w -> m (Dynamic t a),
   at  :: W.Attr w a
 }
-data Prop t w = forall a. Typeable a => Attr t w a := a
-              | forall a. Typeable a => Attr t w a :~ Dynamic t a
+data PropC t c w = forall a. Typeable a => AttrC t c w a := a
+                 | forall a. Typeable a => AttrC t c w a :~ Dynamic t a
+type Attr t w a = AttrC t (Component t) w a
+type Prop t w = PropC t (Component t) w
 
 newtype Component t w = Component (w,[Prop t w])
 
 data AnyWindow = forall w. AW (W.Window w)
 
-class (Reflex t, MonadIO m, MonadHold t m, MonadReflexCreateTrigger t m
-      ,MonadFix m) => MonadComponent t m | m -> t where
+class (Typeable t, Reflex t, MonadIO m, MonadHold t m
+      ,MonadReflexCreateTrigger t m, MonadFix m
+      ) => MonadComponent t m | m -> t where
   askParent       :: m AnyWindow
   addIOEvent      :: Event t (IO ()) -> m ()
 
@@ -72,31 +80,19 @@ find a ((b :~ x):r)
   where n = W.attrName a
         m = W.attrName (at b)
 find a (_:r) = find a r
-{-
-get :: forall a t m w. (Typeable a, Typeable t, MonadComponent t m) => 
-       W.Attr w a -> Component t w -> m (Behavior t a)
-get a (Component (w,p)) = do
-  let name = W.attrName a
 
-  let walk :: [Prop t w] -> Maybe (Behavior t a)
-      walk [] = Nothing
-      walk ((b := x):r)
-        | name == n = case D.fromDynamic (D.toDyn x) of
-                        Just x  -> Just (constant x)
-                        Nothing -> walk r
-        where n  = W.attrName b
-      walk ((b :~ x):r)
-        | name == n = case D.fromDynamic (D.toDyn x) of
-                        Just x  -> Just x
-                        Nothing -> walk r
-        where n  = W.attrName b
-      walk (_:r) = walk r
-  case walk p of
-    Just mv -> return mv
-    Nothing -> do
-                 c <- liftIO $ W.get w a
-                 return $ constant c
--}
+dget :: forall a t m w. (Typeable a, MonadComponent t m) => 
+       W.Attr w a -> Component t w -> m (Dynamic t a)
+dget a (Component (w,p)) = do
+  case find a p of
+    Just (Left c)  -> return $ constDyn c
+    Just (Right d) -> return d
+    Nothing        -> do
+                        c <- liftIO $ W.get w a
+                        return $ constDyn c
+
+fromwa :: Typeable a => W.Attr w a -> Attr t w a
+fromwa a = Attr (dget a) a
 
 towp :: MonadComponent t m => w -> Prop t w -> m (W.Prop w)
 towp w (a := v) = return $ (at a) W.:= v

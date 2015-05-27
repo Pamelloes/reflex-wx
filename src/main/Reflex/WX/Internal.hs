@@ -5,10 +5,10 @@ License     : wxWindows Library License
 Maintainer  : joshuabrot@gmail.com
 Stability   : Experimental
 -}
-{-# LANGUAGE ExistentialQuantification, FlexibleInstances #-}
-{-# LANGUAGE FunctionalDependencies, GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE ImpredicativeTypes, MultiParamTypeClasses #-}
-{-# LANGUAGE TypeFamilies, RankNTypes #-}
+{-# LANGUAGE DeriveDataTypeable, ExistentialQuantification #-}
+{-# LANGUAGE FlexibleInstances, FunctionalDependencies #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving, ImpredicativeTypes #-}
+{-# LANGUAGE MultiParamTypeClasses, TypeFamilies, RankNTypes #-}
 module Reflex.WX.Internal (host
                           ) where
 
@@ -19,6 +19,7 @@ import Control.Monad.IO.Class
 import Control.Monad.State
 
 import Data.Dependent.Sum
+import Data.Typeable
 
 import qualified Graphics.UI.WX as W
 import qualified Graphics.UI.WXCore as W
@@ -42,7 +43,7 @@ type ComponentInternal t m = StateT (ComponentState t) m
 
 newtype ComponentM t m a = ComponentM { 
   unCM :: ComponentInternal t m a
-} deriving (Functor, Applicative, Monad, MonadIO, MonadFix)
+} deriving (Functor, Applicative, Monad, MonadIO, MonadFix, Typeable)
 instance MonadSample t m => MonadSample t (ComponentM t m) where
   sample = ComponentM . lift . sample
 instance MonadHold t m => MonadHold t (ComponentM t m) where
@@ -57,8 +58,9 @@ instance MonadReflexHost t m => MonadReflexHost t (ComponentM t m) where
   runFrame               = ComponentM . lift . runFrame
   runHostFrame           = ComponentM . lift . runHostFrame
 -}
-instance (Reflex t, MonadIO m, MonadHold t m, MonadReflexCreateTrigger t m
-         ,MonadFix m) => MonadComponent t (ComponentM t m) where
+instance (Typeable t, Reflex t, MonadIO m, MonadHold t m
+         ,MonadReflexCreateTrigger t m, MonadFix m
+         ) => MonadComponent t (ComponentM t m) where
   askParent         = do
                          ComponentState{parent=p} <- ComponentM $ get
                          return p

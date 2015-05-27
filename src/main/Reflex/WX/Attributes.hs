@@ -100,7 +100,7 @@ module Reflex.WX.Attributes ( Selecting (..)
 
                             , Selection (..)
                             , Selections (..)
-                            , Items (..)
+                            --, Items (..)
                             , Able (..)
                             , Help (..)
                             , Tipped (..)
@@ -116,16 +116,16 @@ import qualified Graphics.UI.WX as W
 import Reflex
 import Reflex.WX.Class
 
-class Selecting t w where
+class Selecting t c where
   select :: Event t ()
 
-class Commanding t w where
+class Commanding t c where
   command :: Event t ()
 
-class Updating t w where
+class Updating t c where
   update :: Event t ()
 
-class Reactive t w where
+class Reactive t c where
   mouse    :: Event t W.EventMouse
   keyboard :: Event t W.EventKey
   closing  :: Event t ()
@@ -135,81 +135,82 @@ class Reactive t w where
 
 -- TODO add reactive-based events
 
-class Textual t w where
-  text :: Attr t w String
+class Textual t c w where
+  text :: AttrC t c w String
 
-class Literate t w where
-  font          :: Attr t w W.FontStyle
-  fontSize      :: Attr t w Int
-  fontWeight    :: Attr t w W.FontWeight
-  fontFamily    :: Attr t w W.FontFamily
-  fontShape     :: Attr t w W.FontShape
-  fontFace      :: Attr t w String
-  fontUnderline :: Attr t w Bool
-  textColor     :: Attr t w W.Color
-  textBgcolor   :: Attr t w W.Color
+class Literate t c w where
+  font          :: AttrC t c w W.FontStyle
+  fontSize      :: AttrC t c w Int
+  fontWeight    :: AttrC t c w W.FontWeight
+  fontFamily    :: AttrC t c w W.FontFamily
+  fontShape     :: AttrC t c w W.FontShape
+  fontFace      :: AttrC t c w String
+  fontUnderline :: AttrC t c w Bool
+  textColor     :: AttrC t c w W.Color
+  textBgcolor   :: AttrC t c w W.Color
 
-class Dimensions t w where
-  outerSize   :: Attr t w W.Size
-  position    :: Attr t w W.Point
-  area        :: Attr t w W.Rect
-  bestSize    :: Attr t w W.Size -- Read only
-  clientSize  :: Attr t w W.Size
-  virtualSize :: Attr t w W.Size
+class Dimensions t c w where
+  outerSize   :: AttrC t c w W.Size
+  position    :: AttrC t c w W.Point
+  area        :: AttrC t c w W.Rect
+  bestSize    :: AttrC t c w W.Size -- Read only
+  clientSize  :: AttrC t c w W.Size
+  virtualSize :: AttrC t c w W.Size
 
-class Colored t w where
-  bgcolor :: Attr t w W.Color
-  color   :: Attr t w W.Color
+class Colored t c w where
+  bgcolor :: AttrC t c w W.Color
+  color   :: AttrC t c w W.Color
 
-class Visible t w where
-  visible :: Attr t w Bool
+class Visible t c w where
+  visible :: AttrC t c w Bool
 
-class Bordered t w where
-  border :: Attr t w W.Border
+class Bordered t c w where
+  border :: AttrC t c w W.Border
 
-class Selection t w where
-  selection :: Attr t w Int
+class Selection t c w where
+  selection :: AttrC t c w Int
 
-class Selections t w where
-  selections :: Attr t w [Int]
+class Selections t c w where
+  selections :: AttrC t c w [Int]
 
--- TODO Do some magic to work with dynamics
-class Items t w a | w -> a where
+{- TODO Do some magic to work with dynamics
+class Items t c w a | (w -> c, c w -> a) where
   itemCount :: Attr t w Int -- Read only
   items     :: Attr t w [a]
   item      :: Int -> Attr t w a
+-}
 
-class Able t w where
-  enabled :: Attr t w Bool
+class Able t c w where
+  enabled :: AttrC t c w Bool
 
-class Help t w where
-  help :: Attr t w String
+class Help t c w where
+  help :: AttrC t c w String
 
-class Tipped t w where
-  tooltip :: Attr t w String
+class Tipped t c w where
+  tooltip :: AttrC t c w String
 
-class Styled t w where
-  style :: Attr t w Int -- TODO figure out how to gracefully handle styles
+class Styled t c w where
+  style :: AttrC t c w Int -- TODO figure out how to gracefully handle styles
 
 -- These attributes won't update after creation. Encode somehow?
-class Framed t w where
-  resizeable   :: Attr t w Bool
-  minimizeable :: Attr t w Bool
-  maximizable  :: Attr t w Bool
-  closeable    :: Attr t w Bool
+class Framed t c w where
+  resizeable   :: AttrC t c w Bool
+  minimizeable :: AttrC t c w Bool
+  maximizable  :: AttrC t c w Bool
+  closeable    :: AttrC t c w Bool
 
-class Checkable t w where
-  checkable :: Attr t w Bool
-  checked   :: Attr t w Bool
+class Checkable t c w where
+  checkable :: AttrC t c w Bool
+  checked   :: AttrC t c w Bool
 
-class Pictured t w where
-  picture :: Attr t w FilePath
+class Pictured t c w where
+  picture :: AttrC t c w FilePath
 
-class Sized t w where
-  size :: Attr t w W.Size
+class Sized t c w where
+  size :: AttrC t c w W.Size
 
 {-
 -- TODO work out types, add additional defaults
-class HasDefault t w where
-  defaultButton :: Attr t w (Button ())
+class HasDefault t c where
+  defaultButton :: AttrC t c (Button ())
 -}
