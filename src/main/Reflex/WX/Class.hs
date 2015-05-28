@@ -19,8 +19,8 @@ module Reflex.WX.Class ( AttrC (..)
                        , MonadComponent (..)
                        , find
                        , dget
-                       , fromwa
-                       , towp
+                       , wrapAttr
+                       , unwrapProp
                        , wrapEvent
                        , wrapEvent1
                        ) where
@@ -94,12 +94,12 @@ dget a (Component (w,p)) = do
                         c <- liftIO $ W.get w a
                         return $ constDyn c
 
-fromwa :: Typeable a => W.Attr w a -> Attr t w a
-fromwa a = Attr (dget a) a
+wrapAttr :: Typeable a => W.Attr w a -> Attr t w a
+wrapAttr a = Attr (dget a) a
 
-towp :: MonadComponent t m => w -> Prop t w -> m (W.Prop w)
-towp w (a := v) = return $ (at a) W.:= v
-towp w (a :~ v) = do
+unwrapProp :: MonadComponent t m => w -> Prop t w -> m (W.Prop w)
+unwrapProp w (a := v) = return $ (at a) W.:= v
+unwrapProp w (a :~ v) = do
   addIOEvent $ fmap (\x -> W.set w [(at a) W.:= x]) (updated v)
   cv <- sample $ current v
   return $ (at a) W.:= cv

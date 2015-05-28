@@ -44,7 +44,7 @@ wrapWC :: (W.Widget w, MonadComponent t m) =>
             -> m (Component t w)
 wrapWC f p = do 
   (AW w) <- askParent
-  rec prop <- sequence $ fmap (towp x) p
+  rec prop <- sequence $ fmap (unwrapProp x) p
       x    <- liftIO $ f w prop
   let c = Component (x,p)
   addComponent c
@@ -55,7 +55,7 @@ wrapWF :: forall w t m b. (W.Form (W.Window w), MonadComponent t m) =>
             -> [Prop t (W.Window w)] -> m b -> m (Component t (W.Window w),b)
 wrapWF f p c = do 
   (AW w) <- askParent
-  rec prop <- sequence $ fmap (towp x) p
+  rec prop <- sequence $ fmap (unwrapProp x) p
       x    <- liftIO $ f w prop
 
   pushComponents (AW x)
@@ -72,7 +72,7 @@ wrapWT :: MonadComponent t m =>
             -> [Prop t (W.TopLevelWindow w)] -> m b 
               -> m (Component t (W.TopLevelWindow w),b)
 wrapWT f p c = do
-  rec prop <- sequence $ fmap (towp x) p
+  rec prop <- sequence $ fmap (unwrapProp x) p
       x    <- liftIO $ f prop
 
   pushComponents (AW x)
@@ -92,42 +92,42 @@ window :: (MonadComponent t m) =>
 window = wrapWC W.window
 
 tabTraversal :: Attr t (W.Window a) Bool
-tabTraversal = fromwa W.tabTraversal
+tabTraversal = wrapAttr W.tabTraversal
 
 instance Able t (Component t) (W.Window a) where
-  enabled = fromwa W.enabled
+  enabled = wrapAttr W.enabled
 instance Bordered t (Component t) (W.Window a) where
-  border = fromwa W.border
+  border = wrapAttr W.border
 instance Colored t (Component t) (W.Window a) where
-  bgcolor = fromwa W.bgcolor
-  color   = fromwa W.color
+  bgcolor = wrapAttr W.bgcolor
+  color   = wrapAttr W.color
 instance Dimensions t (Component t) (W.Window a) where
-  outerSize   = fromwa W.outerSize
-  position    = fromwa W.position
-  area        = fromwa W.area
-  bestSize    = fromwa W.bestSize
-  clientSize  = fromwa W.clientSize
-  virtualSize = fromwa W.virtualSize
+  outerSize   = wrapAttr W.outerSize
+  position    = wrapAttr W.position
+  area        = wrapAttr W.area
+  bestSize    = wrapAttr W.bestSize
+  clientSize  = wrapAttr W.clientSize
+  virtualSize = wrapAttr W.virtualSize
 instance Literate t (Component t) (W.Window a) where
-  font = fromwa W.font
-  fontSize      = fromwa W.fontSize
-  fontWeight    = fromwa W.fontWeight
-  fontFamily    = fromwa W.fontFamily
-  fontShape     = fromwa W.fontShape
-  fontFace      = fromwa W.fontFace
-  fontUnderline = fromwa W.fontUnderline
-  textColor     = fromwa W.textColor
-  textBgcolor   = fromwa W.textBgcolor
+  font = wrapAttr W.font
+  fontSize      = wrapAttr W.fontSize
+  fontWeight    = wrapAttr W.fontWeight
+  fontFamily    = wrapAttr W.fontFamily
+  fontShape     = wrapAttr W.fontShape
+  fontFace      = wrapAttr W.fontFace
+  fontUnderline = wrapAttr W.fontUnderline
+  textColor     = wrapAttr W.textColor
+  textBgcolor   = wrapAttr W.textBgcolor
 instance Sized t (Component t) (W.Window a) where
-  size = fromwa W.size
+  size = wrapAttr W.size
 instance Styled t (Component t) (W.Window a) where
-  style = fromwa W.style
+  style = wrapAttr W.style
 instance Textual t (Component t) (W.Window a) where
-  text = fromwa W.text
+  text = wrapAttr W.text
 instance Tipped t (Component t) (W.Window a) where
-  tooltip = fromwa W.tooltip
+  tooltip = wrapAttr W.tooltip
 instance Visible t (Component t) (W.Window a) where
-  visible = fromwa W.visible
+  visible = wrapAttr W.visible
 
 instance Reactive t (Window t a) where
   mouse    = wrapEvent1 W.mouse
@@ -143,13 +143,13 @@ type TopLevelWindow t a = Component t (W.TopLevelWindow a)
 -- TODO Closeable?
 -- TODO Form?
 instance Framed t (Component t) (W.TopLevelWindow a) where
-  resizeable   = fromwa W.resizeable
-  minimizeable = fromwa W.minimizeable
-  maximizeable = fromwa W.maximizeable
-  closeable    = fromwa W.closeable
+  resizeable   = wrapAttr W.resizeable
+  minimizeable = wrapAttr W.minimizeable
+  maximizeable = wrapAttr W.maximizeable
+  closeable    = wrapAttr W.closeable
 -- TODO HasDefault?
 instance Pictured t (Component t) (W.TopLevelWindow a) where
-  picture = fromwa W.picture
+  picture = wrapAttr W.picture
 
 -- Frame
 type Frame t a = Component t (W.Frame a)

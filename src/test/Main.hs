@@ -21,7 +21,7 @@ program = do
         cmd <- command b
         ct <- count (mergeWith (<>) [cmd,c])
         dyn <- mapDyn (("Presses: " ++).show) ct
-        staticText [text :~ dyn]
+        t <- label [text :~ dyn]
         (_,c) <- panel [] $ do
                    setLayout (W.column 10)
                    b1 <- button [text := "Click me!"]
@@ -29,6 +29,8 @@ program = do
                    c1 <- command b1
                    c2 <- command b2
                    return (mergeWith (<>) [c1,c2])
+        t' <- get text t
+        label [text :~ t']
     return ()
   return ()
 
