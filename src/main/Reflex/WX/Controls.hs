@@ -6,10 +6,27 @@ License     : wxWindows Library License
 Maintainer  : joshuabrot@gmail.com
 Stability   : Experimental
 -}
-{-# LANGUAGE FlexibleInstances, MultiParamTypeClasses, RecursiveDo #-}
-{-# LANGUAGE RankNTypes, TypeSynonymInstances #-}
+{-# LANGUAGE FlexibleContexts, FlexibleInstances, MultiParamTypeClasses #-}
+{-# LANGUAGE RecursiveDo, RankNTypes, TypeSynonymInstances #-}
 module Reflex.WX.Controls ( Window
                           , window
+                          , tabTraversal
+
+                          , TopLevelWindow
+
+                          , Frame
+                          , frame
+
+                          , Panel
+                          , panel
+
+                          , Button
+                          , button
+
+                          , StaticText
+                          , staticText
+                          , Label
+                          , label
                           ) where
 
 import Control.Monad.Fix
@@ -22,10 +39,10 @@ import Reflex
 import Reflex.WX.Class
 import Reflex.WX.Attributes
 
-fromwc :: (W.Widget w, MonadComponent t m) => 
+wrapWC :: (W.Widget w, MonadComponent t m) => 
           (forall a. W.Window a -> [W.Prop w] -> IO(w)) -> [Prop t w] 
             -> m (Component t w)
-fromwc f p = do 
+wrapWC f p = do 
   (AW w) <- askParent
   rec prop <- sequence $ fmap (towp x) p
       x    <- liftIO $ f w prop
@@ -33,39 +50,10 @@ fromwc f p = do
   addComponent c
   return c
 
-type Window t a = Component t (W.Window a)
-
-window :: (MonadComponent t m) => 
-          [Prop t (W.Window ())] -> m (Window t ())
-window = fromwc W.window
-
-tabTraversal :: Attr t (W.Window a) Bool
-tabTraversal = fromwa W.tabTraversal
-
-instance Able t (Component t) (W.Window a) where
-  enabled = fromwa W.enabled
-
-{-
-frame :: (MonadComponent t m) => 
-         [Prop t (W.Frame ())] -> m a -> m (Component t (W.Frame ()),a)
-frame p c = do
-  rec prop <- sequence $ fmap (towp x) p
-      x    <- liftIO $ W.frame prop
-
-  pushComponents (AW x)
-  a <- c
-  l <- popComponents
-  liftIO $ W.set x [W.layout W.:= l]
-
-  let cp = Component (x,p)
-  --addComponent cp
-  return (cp,a)
-
-
-fromwf :: forall w t m b. (W.Form (W.Window w), MonadComponent t m) => 
+wrapWF :: forall w t m b. (W.Form (W.Window w), MonadComponent t m) => 
           (forall a. W.Window a -> [W.Prop (W.Window w)] -> IO (W.Window w))
             -> [Prop t (W.Window w)] -> m b -> m (Component t (W.Window w),b)
-fromwf f p c = do 
+wrapWF f p c = do 
   (AW w) <- askParent
   rec prop <- sequence $ fmap (towp x) p
       x    <- liftIO $ f w prop
@@ -78,23 +66,124 @@ fromwf f p c = do
   let cp = Component (x,p)
   addComponent cp
   return (cp,a)
-         
+
+wrapWT :: MonadComponent t m => 
+          ([W.Prop (W.TopLevelWindow w)] -> IO (W.TopLevelWindow w))
+            -> [Prop t (W.TopLevelWindow w)] -> m b 
+              -> m (Component t (W.TopLevelWindow w),b)
+wrapWT f p c = do
+  rec prop <- sequence $ fmap (towp x) p
+      x    <- liftIO $ f prop
+
+  pushComponents (AW x)
+  a <- c
+  l <- popComponents
+  liftIO $ W.set x [W.layout W.:= l]
+
+  let cp = Component (x,p)
+  addComponent cp
+  return (cp,a)
+
+-- Window
+type Window t a = Component t (W.Window a)
+
+window :: (MonadComponent t m) => 
+          [Prop t (W.Window ())] -> m (Window t ())
+window = wrapWC W.window
+
+tabTraversal :: Attr t (W.Window a) Bool
+tabTraversal = fromwa W.tabTraversal
+
+instance Able t (Component t) (W.Window a) where
+  enabled = fromwa W.enabled
+instance Bordered t (Component t) (W.Window a) where
+  border = fromwa W.border
+instance Colored t (Component t) (W.Window a) where
+  bgcolor = fromwa W.bgcolor
+  color   = fromwa W.color
+instance Dimensions t (Component t) (W.Window a) where
+  outerSize   = fromwa W.outerSize
+  position    = fromwa W.position
+  area        = fromwa W.area
+  bestSize    = fromwa W.bestSize
+  clientSize  = fromwa W.clientSize
+  virtualSize = fromwa W.virtualSize
+instance Literate t (Component t) (W.Window a) where
+  font = fromwa W.font
+  fontSize      = fromwa W.fontSize
+  fontWeight    = fromwa W.fontWeight
+  fontFamily    = fromwa W.fontFamily
+  fontShape     = fromwa W.fontShape
+  fontFace      = fromwa W.fontFace
+  fontUnderline = fromwa W.fontUnderline
+  textColor     = fromwa W.textColor
+  textBgcolor   = fromwa W.textBgcolor
+instance Sized t (Component t) (W.Window a) where
+  size = fromwa W.size
+instance Styled t (Component t) (W.Window a) where
+  style = fromwa W.style
+instance Textual t (Component t) (W.Window a) where
+  text = fromwa W.text
+instance Tipped t (Component t) (W.Window a) where
+  tooltip = fromwa W.tooltip
+instance Visible t (Component t) (W.Window a) where
+  visible = fromwa W.visible
+
+instance Reactive t (Window t a) where
+  mouse    = wrapEvent1 W.mouse
+  keyboard = wrapEvent1 W.keyboard
+  closing  = wrapEvent  W.closing
+  resize   = wrapEvent  W.resize
+  focus    = wrapEvent1 W.focus
+  activate = wrapEvent1 W.activate
+
+-- TopLevelWindow
+type TopLevelWindow t a = Component t (W.TopLevelWindow a)
+
+-- TODO Closeable?
+-- TODO Form?
+instance Framed t (Component t) (W.TopLevelWindow a) where
+  resizeable   = fromwa W.resizeable
+  minimizeable = fromwa W.minimizeable
+  maximizeable = fromwa W.maximizeable
+  closeable    = fromwa W.closeable
+-- TODO HasDefault?
+instance Pictured t (Component t) (W.TopLevelWindow a) where
+  picture = fromwa W.picture
+
+-- Frame
+type Frame t a = Component t (W.Frame a)
+
+frame :: (MonadComponent t m) => 
+         [Prop t (W.Frame ())] -> m a -> m (Frame t (),a)
+frame = wrapWT W.frame
+
+-- Panel
+type Panel t a = Component t (W.Panel a)
 
 panel :: (MonadComponent t m) => 
-         [Prop t (W.Panel ())] -> m a -> m (Component t (W.Panel ()),a)
-panel = fromwf W.panel
+         [Prop t (W.Panel ())] -> m a -> m (Panel t (),a)
+panel = wrapWF W.panel
+
+-- Button
+type Button t a = Component t (W.Button a)
 
 button :: (MonadComponent t m) => 
-          [Prop t (W.Button ())] -> m (Component t (W.Button ()))
-button = fromwc W.button
+          [Prop t (W.Button ())] -> m (Button t ())
+button = wrapWC W.button
+
+instance Commanding t (Button t a) where
+  command = wrapEvent W.command
+
+-- StaticText
+type StaticText t a = Component t (W.StaticText a)
 
 staticText :: (MonadComponent t m) => 
-          [Prop t (W.StaticText ())] -> m (Component t (W.StaticText ()))
-staticText = fromwc W.staticText
+              [Prop t (W.StaticText ())] -> m (StaticText t ())
+staticText = wrapWC W.staticText
 
-{-
-command :: (W.Commanding w, MonadComponent t m) => 
-           Component t w -> m (Event t ())
-command = wrapEvent W.command
--}
--}
+type Label t a = StaticText t a
+
+label :: (MonadComponent t m) => 
+         [Prop t (W.StaticText ())] -> m (Label t ())
+label = staticText

@@ -6,7 +6,7 @@ License     : wxWindows Library License
 Maintainer  : joshuabrot@gmail.com
 Stability   : Experimental
 -}
-{-# LANGUAGE FunctionalDependencies, MultiParamTypeClasses #-}
+{-# LANGUAGE FunctionalDependencies, MultiParamTypeClasses, RankNTypes  #-}
 module Reflex.WX.Attributes ( Selecting (..)
                             , Commanding (..)
                             , Updating (..)
@@ -117,21 +117,21 @@ import Reflex
 import Reflex.WX.Class
 
 class Selecting t c where
-  select :: Event t ()
+  select :: forall m. MonadComponent t m => c -> m (Event t ())
 
 class Commanding t c where
-  command :: Event t ()
+  command :: forall m. MonadComponent t m => c -> m (Event t ())
 
 class Updating t c where
-  update :: Event t ()
+  update :: forall m. MonadComponent t m => c -> m (Event t ())
 
 class Reactive t c where
-  mouse    :: Event t W.EventMouse
-  keyboard :: Event t W.EventKey
-  closing  :: Event t ()
-  resize   :: Event t ()
-  focus    :: Event t Bool
-  activate :: Event t Bool
+  mouse    :: forall m. MonadComponent t m => c -> m (Event t W.EventMouse)
+  keyboard :: forall m. MonadComponent t m => c -> m (Event t W.EventKey)
+  closing  :: forall m. MonadComponent t m => c -> m (Event t ())
+  resize   :: forall m. MonadComponent t m => c -> m (Event t ())
+  focus    :: forall m. MonadComponent t m => c -> m (Event t Bool)
+  activate :: forall m. MonadComponent t m => c -> m (Event t Bool)
 
 -- TODO add reactive-based events
 
@@ -196,7 +196,7 @@ class Styled t c w where
 class Framed t c w where
   resizeable   :: AttrC t c w Bool
   minimizeable :: AttrC t c w Bool
-  maximizable  :: AttrC t c w Bool
+  maximizeable  :: AttrC t c w Bool
   closeable    :: AttrC t c w Bool
 
 class Checkable t c w where

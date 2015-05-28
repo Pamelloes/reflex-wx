@@ -22,6 +22,7 @@ module Reflex.WX.Class ( AttrC (..)
                        , fromwa
                        , towp
                        , wrapEvent
+                       , wrapEvent1
                        ) where
 
 import Control.Monad
@@ -37,6 +38,8 @@ import qualified Graphics.UI.WX as W
 
 import Reflex
 import Reflex.Host.Class hiding (fireEvents)
+
+infixr 0 :=,:~
 
 data AttrC t c w a = Attr {
   get :: forall m. MonadComponent t m => c w -> m (Dynamic t a),
@@ -104,17 +107,23 @@ towp w (a :~ v) = do
 wrapEvent :: forall t m w. MonadComponent t m => 
              W.Event w (IO ()) -> Component t w -> m (Event t ()) 
 wrapEvent e (Component (w,_)) = do
-  {-let k=hash (e,w)
-  h <- ComponentM $ gets (\(a@ComponentState{eventMap=e}) -> M.member k e)
-  if h then
-    ComponentM $ gets (\(ComponentState{eventMap=e}) -> event (e M.! k) )
-  else do-}
-    let fire :: EventTrigger t () -> [DSum (EventTrigger t)]
-        fire et = [et :=> ()]
-    f <- fireEvents fire
-    n <- newEventWithTrigger $ \et -> do
-           W.set w [W.on e W.:= f et]
-           return $ W.set w [W.on e W.:= W.propagateEvent]
-    --ComponentM $ modify (\(a@ComponentState{eventMap=e})
-    --                      ->a{eventMap=M.insert k (AnyEvent n) e})
-    return n
+  --TODO Cache events.
+  let fire :: EventTrigger t () -> [DSum (EventTrigger t)]
+      fire et = [et :=> ()]
+  f <- fireEvents fire
+  n <- newEventWithTrigger $ \et -> do
+         W.set w [W.on e W.:= f et]
+         return $ W.set w [W.on e W.:= W.propagateEvent]
+  return n
+
+wrapEvent1 :: forall t m w a. MonadComponent t m => 
+             W.Event w (a -> IO ()) -> Component t w -> m (Event t a) 
+wrapEvent1 e (Component (w,_)) = do
+  --TODO Cache events.
+  let fire :: (EventTrigger t a,a) -> [DSum (EventTrigger t)]
+      fire (et,a) = [et :=> a]
+  f <- fireEvents fire
+  n <- newEventWithTrigger $ \et -> do
+         W.set w [W.on e W.:= \a -> f (et,a)]
+         return $ W.set w [W.on e W.:= \_ -> W.propagateEvent]
+  return n

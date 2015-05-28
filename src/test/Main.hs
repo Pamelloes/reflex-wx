@@ -16,16 +16,16 @@ import Reflex.WX
 
 --program :: (MonadComponent t m) => m ()
 program = do 
-  frame [W.text := "Test Application"] $ do
-    rec b <- button [W.text := "Click"]
+  frame [text := "Test Application"] $ do
+    rec b <- button [text := "Click"]
         cmd <- command b
         ct <- count (mergeWith (<>) [cmd,c])
         dyn <- mapDyn (("Presses: " ++).show) ct
-        staticText [W.text :~ dyn]
+        staticText [text :~ dyn]
         (_,c) <- panel [] $ do
                    setLayout (W.column 10)
-                   b1 <- button [W.text := "Click me!"]
-                   b2 <- button [W.text := "Me, too!"]
+                   b1 <- button [text := "Click me!"]
+                   b2 <- button [text := "Me, too!"]
                    c1 <- command b1
                    c2 <- command b2
                    return (mergeWith (<>) [c1,c2])
