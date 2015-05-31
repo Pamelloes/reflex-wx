@@ -10,7 +10,7 @@ Stability   : Experimental
 module Reflex.WX.Internal (host
                           ) where
 
-import Control.Concurrent.MVar
+import Control.Concurrent.STM
 
 import Control.Monad.Fix
 import Control.Monad.IO.Class
@@ -44,7 +44,7 @@ findEvent e c ((ECR (e1,c1) a):rs)
 findEvent e c (_:rs) = findEvent e c rs
 
 data ComponentState t = ComponentState {
-  mvar    :: MVar [DSum (EventTrigger t)],
+  mvar    :: TChan [DSum (EventTrigger t)],
   parent  :: AnyWindow,
   ioEvent :: [Event t (IO ())],
   lay     :: [W.Layout] -> W.Layout,
@@ -96,16 +96,14 @@ instance (Typeable t, Reflex t, MonadIO m, MonadHold t m
   cacheEvent e c d  = do
                         s@(ComponentState{ecache=ec}) <- ComponentM $ get
                         case findEvent e c ec of
-                          Just ev -> do
-                                       liftIO $ print "cache!"
-                                       return ev
+                          Just ev -> return ev
                           Nothing -> do
                                        a <- d
                                        ComponentM$put s{ecache=(ECR (e,c) a):ec}
                                        return a
   fireEvents f      = do
                         ComponentState{mvar=v} <- ComponentM $ get
-                        return $ \a -> putMVar v (f a)
+                        return $ \a -> atomically $ writeTChan v (f a)
 
 whileM :: Monad m => (m Bool) -> m a -> m ()
 whileM c l = do
@@ -116,7 +114,7 @@ whileM c l = do
 host :: ComponentM Spider (HostFrame Spider) a -> IO ()
 host c = W.start $ do
   runSpiderHost $ do
-    v <- liftIO $ newEmptyMVar
+    v <- liftIO $ atomically newTChan
     let istate = ComponentState v undefined [] undefined [] [] []
 
     (_,s) <- runHostFrame $ runStateT (unCM c) istate
@@ -125,15 +123,13 @@ host c = W.start $ do
     ieh <- subscribeEvent $ mergeWith (>>) ie
     whileM (liftIO W.wxcAppGetTopWindow >>= return . (/=W.objectNull)) $ do
       liftIO $ W.wxcAppYield
-      e <- liftIO $ tryTakeMVar v
-      case (e) of
-        Just e -> do
-                    io <- fireEventsAndRead e $ do
-                            r <- readEvent ieh
-                            case r of
-                              Just f  -> f
-                              Nothing -> return $ return ()
-                    liftIO $ io
-        Nothing -> return ()
+      whileM (fmap not $ liftIO $ atomically $ isEmptyTChan v) $ do
+        e <- liftIO $ atomically $ readTChan v
+        io <- fireEventsAndRead e $ do
+                r <- readEvent ieh
+                case r of
+                  Just f  -> f
+                  Nothing -> return $ return ()
+        liftIO $ io
     liftIO $ W.wxcAppExit
     return ()

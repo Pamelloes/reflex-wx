@@ -34,7 +34,7 @@ program = do
                    return (mergeWith (<>) [c1,c2], mergeWith (<>) [d1,d2])
         e <- entry [ text := "Maybe" ]
     t1 <- get text t
-    t2 <- get text t
+    t2 <- get text e
     label [text :~ t1]
     label [text :~ t2]
     return ()

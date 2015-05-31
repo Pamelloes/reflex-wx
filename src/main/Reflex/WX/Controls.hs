@@ -141,7 +141,16 @@ instance Typeable a => Textual t (Component t) (W.Window a) where
           f a = case ((gcast a)::Maybe (Component t (W.TextCtrl ()))) of
                  Nothing -> (dget W.text) a
                  Just v  -> do
-                   return undefined
+                   let Component (w,p) = v
+                   let get :: IO () -> String -> IO ()
+                       get a _ = a
+                   let set :: IO () -> (String -> IO ()) -> IO ()
+                       set _ n = do
+                                   str <- W.get w W.text
+                                   n str
+                   let ev = W.mapEvent get set W.update
+                   e <- wrapEvent1 ev v
+                   holdDyn "" e
 instance Tipped t (Component t) (W.Window a) where
   tooltip = wrapAttr W.tooltip
 instance Visible t (Component t) (W.Window a) where
