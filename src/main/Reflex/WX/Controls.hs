@@ -6,8 +6,9 @@ License     : wxWindows Library License
 Maintainer  : joshuabrot@gmail.com
 Stability   : Experimental
 -}
-{-# LANGUAGE FlexibleContexts, FlexibleInstances, MultiParamTypeClasses #-}
-{-# LANGUAGE RecursiveDo, RankNTypes, TypeSynonymInstances #-}
+{-# LANGUAGE DeriveDataTypeable, FlexibleContexts, FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses, RecursiveDo, RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables, TypeSynonymInstances #-}
 module Reflex.WX.Controls ( Window
                           , window
                           , tabTraversal
@@ -19,9 +20,18 @@ module Reflex.WX.Controls ( Window
 
                           , Panel
                           , panel
+                          
+                          , ScrolledWindow
+                          , scrolledWindow
+                          , scrollRate
 
                           , Button
                           , button
+
+                          , TextCtrl
+                          , entry
+                          , textEntry
+                          , textCtrl
 
                           , StaticText
                           , staticText
@@ -31,6 +41,8 @@ module Reflex.WX.Controls ( Window
 
 import Control.Monad.Fix
 import Control.Monad.IO.Class
+
+import Data.Typeable
 
 import qualified Graphics.UI.WX as W
 import qualified Graphics.UI.WXCore as W
@@ -122,14 +134,20 @@ instance Sized t (Component t) (W.Window a) where
   size = wrapAttr W.size
 instance Styled t (Component t) (W.Window a) where
   style = wrapAttr W.style
-instance Textual t (Component t) (W.Window a) where
-  text = wrapAttr W.text
+instance Typeable a => Textual t (Component t) (W.Window a) where
+  text = Attr f W.text
+    where f :: forall t m a. (Typeable a, MonadComponent t m) =>
+               Component t (W.Window a) -> m (Dynamic t String)
+          f a = case ((gcast a)::Maybe (Component t (W.TextCtrl ()))) of
+                 Nothing -> (dget W.text) a
+                 Just v  -> do
+                   return undefined
 instance Tipped t (Component t) (W.Window a) where
   tooltip = wrapAttr W.tooltip
 instance Visible t (Component t) (W.Window a) where
   visible = wrapAttr W.visible
 
-instance Reactive t (Window t a) where
+instance Typeable a => Reactive t (Window t a) where
   mouse    = wrapEvent1 W.mouse
   keyboard = wrapEvent1 W.keyboard
   closing  = wrapEvent  W.closing
@@ -165,6 +183,17 @@ panel :: (MonadComponent t m) =>
          [Prop t (W.Panel ())] -> m a -> m (Panel t (),a)
 panel = wrapWF W.panel
 
+-- ScrolledWindow
+type ScrolledWindow t a = Component t (W.ScrolledWindow a)
+
+scrolledWindow :: (MonadComponent t m) => 
+                  [Prop t (W.ScrolledWindow ())] -> m a 
+                    -> m (ScrolledWindow t (),a)
+scrolledWindow = wrapWF W.scrolledWindow
+
+scrollRate :: Attr t (W.ScrolledWindow a) Size
+scrollRate = wrapAttr W.scrollRate
+
 -- Button
 type Button t a = Component t (W.Button a)
 
@@ -172,8 +201,23 @@ button :: (MonadComponent t m) =>
           [Prop t (W.Button ())] -> m (Button t ())
 button = wrapWC W.button
 
-instance Commanding t (Button t a) where
+instance Typeable a => Commanding t (Button t a) where
   command = wrapEvent W.command
+
+-- TextCtrl
+type TextCtrl t a = Component t (W.TextCtrl a)
+
+entry :: (MonadComponent t m) => 
+         [Prop t (W.TextCtrl ())] -> m (TextCtrl t ())
+entry = textEntry
+
+textEntry :: (MonadComponent t m) => 
+             [Prop t (W.TextCtrl ())] -> m (TextCtrl t ())
+textEntry = wrapWC W.textEntry
+
+textCtrl :: (MonadComponent t m) => 
+            [Prop t (W.TextCtrl ())] -> m (TextCtrl t ())
+textCtrl = wrapWC W.textCtrl
 
 -- StaticText
 type StaticText t a = Component t (W.StaticText a)

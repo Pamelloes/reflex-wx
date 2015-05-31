@@ -1,12 +1,10 @@
 {-|
-Module      : Reflex.WX.Internal
-Description : This module contains the code for executing a reflex-wx program.
 License     : wxWindows Library License
 Maintainer  : joshuabrot@gmail.com
 Stability   : Experimental
 -}
 {-# LANGUAGE DeriveDataTypeable, ExistentialQuantification #-}
-{-# LANGUAGE FlexibleInstances, FunctionalDependencies #-}
+{-# LANGUAGE FlexibleContexts, FlexibleInstances, FunctionalDependencies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving, ImpredicativeTypes #-}
 {-# LANGUAGE MultiParamTypeClasses, TypeFamilies, RankNTypes #-}
 module Reflex.WX.Internal (host
@@ -19,16 +17,31 @@ import Control.Monad.IO.Class
 import Control.Monad.State
 
 import Data.Dependent.Sum
+import qualified Data.Dynamic as D
 import Data.Typeable
 
 import qualified Graphics.UI.WX as W
-import qualified Graphics.UI.WXCore as W
+import qualified Graphics.UI.WXCore as W hiding (Event)
 
 import Reflex
 import Reflex.Host.Class
 import Reflex.WX.Class hiding (get)
 
 data AnyComp t = forall w. (W.Widget w) => AC (Component t w)
+data ECRec t = forall w a. (Typeable w,Eq w,Typeable (EventMap a)) => 
+               ECR (W.Event w a,Component t w) (Event t (EventMap a))
+
+findEvent :: (Typeable w,Eq w,Typeable t,Typeable (EventMap a)) =>
+             W.Event w a -> Component t w -> [ECRec t] 
+               -> Maybe (Event t (EventMap a))
+findEvent e c []     = Nothing
+findEvent e c ((ECR (e1,c1) a):rs) 
+  | n == m = case D.fromDynamic (D.toDyn (c1,a)) of
+               Just (x,y)  -> if c == x then Just y else findEvent e c rs
+               Nothing     -> findEvent e c rs
+  where n = W.attrName (W.on e)
+        m = W.attrName (W.on e1)
+findEvent e c (_:rs) = findEvent e c rs
 
 data ComponentState t = ComponentState {
   mvar    :: MVar [DSum (EventTrigger t)],
@@ -36,7 +49,8 @@ data ComponentState t = ComponentState {
   ioEvent :: [Event t (IO ())],
   lay     :: [W.Layout] -> W.Layout,
   comp    :: [AnyComp t],
-  compst  :: [(AnyWindow,[W.Layout]->W.Layout,[AnyComp t])]
+  compst  :: [(AnyWindow,[W.Layout]->W.Layout,[AnyComp t])],
+  ecache  :: [ECRec t]
 }
 
 type ComponentInternal t m = StateT (ComponentState t) m
@@ -74,12 +88,22 @@ instance (Typeable t, Reflex t, MonadIO m, MonadHold t m
   addComponent c    = ComponentM $ modify (\(s@ComponentState{comp=i})->
                                           s{comp=(AC c):i})
   popComponents     = do
-                        s@(ComponentState _ _ _ l c (h:cs)) <- ComponentM $ get
+                        s@(ComponentState _ _ _ l c (h:r) _) <- ComponentM $ get
                         let (p,m,n)=h
                         let ls = fmap (\(AC (Component (l,_)))->W.widget l) c
-                        ComponentM $ put s{parent=p,lay=m,comp=n,compst=cs}
+                        ComponentM $ put s{parent=p,lay=m,comp=n,compst=r}
                         return $ l (reverse ls)
-  fireEvents f = do
+  cacheEvent e c d  = do
+                        s@(ComponentState{ecache=ec}) <- ComponentM $ get
+                        case findEvent e c ec of
+                          Just ev -> do
+                                       liftIO $ print "cache!"
+                                       return ev
+                          Nothing -> do
+                                       a <- d
+                                       ComponentM$put s{ecache=(ECR (e,c) a):ec}
+                                       return a
+  fireEvents f      = do
                         ComponentState{mvar=v} <- ComponentM $ get
                         return $ \a -> putMVar v (f a)
 
@@ -93,7 +117,7 @@ host :: ComponentM Spider (HostFrame Spider) a -> IO ()
 host c = W.start $ do
   runSpiderHost $ do
     v <- liftIO $ newEmptyMVar
-    let istate = ComponentState v undefined [] undefined [] []
+    let istate = ComponentState v undefined [] undefined [] [] []
 
     (_,s) <- runHostFrame $ runStateT (unCM c) istate
     let ComponentState{ioEvent = ie} = s

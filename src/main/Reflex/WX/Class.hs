@@ -6,16 +6,17 @@ License     : wxWindows Library License
 Maintainer  : joshuabrot@gmail.com
 Stability   : Experimental
 -}
-{-# LANGUAGE ExistentialQuantification, FlexibleInstances #-}
+{-# LANGUAGE ExistentialQuantification, FlexibleInstances, FlexibleContexts #-}
 {-# LANGUAGE FunctionalDependencies, GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE ImpredicativeTypes, MultiParamTypeClasses #-}
-{-# LANGUAGE RankNTypes, ScopedTypeVariables #-}
+{-# LANGUAGE ImpredicativeTypes, KindSignatures, MultiParamTypeClasses #-}
+{-# LANGUAGE RankNTypes, ScopedTypeVariables, TypeFamilies #-}
 module Reflex.WX.Class ( AttrC (..)
                        , Attr
                        , PropC (..)
                        , Prop
                        , Component (..)
                        , AnyWindow (..)
+                       , EventMap
                        , MonadComponent (..)
                        , find
                        , dget
@@ -51,6 +52,10 @@ type Attr t w a = AttrC t (Component t) w a
 type Prop t w = PropC t (Component t) w
 
 newtype Component t w = Component (w,[Prop t w])
+instance Eq w => Eq (Component t w) where
+  (Component (w,_)) == (Component (x,_)) = w == x
+
+type family EventMap (k:: * ) :: *
 
 data AnyWindow = forall w. AW (W.Window w)
 
@@ -65,6 +70,9 @@ class (Typeable t, Reflex t, MonadIO m, MonadHold t m
   addComponent    :: (W.Widget w) => Component t w -> m ()
   popComponents   :: m (W.Layout)
 
+  cacheEvent      :: (Typeable w,Eq w,Typeable (EventMap a)) => 
+                      W.Event w a -> Component t w -> m (Event t (EventMap a)) 
+                        -> m (Event t (EventMap a))
   fireEvents      :: (a -> [DSum (EventTrigger t)]) -> m (a -> IO ())
 
 find :: (Typeable a, Typeable t, Reflex t) =>
@@ -104,10 +112,10 @@ unwrapProp w (a :~ v) = do
   cv <- sample $ current v
   return $ (at a) W.:= cv
 
-wrapEvent :: forall t m w. MonadComponent t m => 
+type instance EventMap (IO ()) = ()
+wrapEvent :: forall t m w. (Typeable w,Eq w,MonadComponent t m) => 
              W.Event w (IO ()) -> Component t w -> m (Event t ()) 
-wrapEvent e (Component (w,_)) = do
-  --TODO Cache events.
+wrapEvent e c@(Component (w,_)) = cacheEvent e c $ do
   let fire :: EventTrigger t () -> [DSum (EventTrigger t)]
       fire et = [et :=> ()]
   f <- fireEvents fire
@@ -116,10 +124,10 @@ wrapEvent e (Component (w,_)) = do
          return $ W.set w [W.on e W.:= W.propagateEvent]
   return n
 
-wrapEvent1 :: forall t m w a. MonadComponent t m => 
+type instance EventMap (a -> IO ()) = a
+wrapEvent1 :: forall t m w a. (Typeable a,Typeable w,Eq w,MonadComponent t m) => 
              W.Event w (a -> IO ()) -> Component t w -> m (Event t a) 
-wrapEvent1 e (Component (w,_)) = do
-  --TODO Cache events.
+wrapEvent1 e c@(Component (w,_)) = cacheEvent e c $ do
   let fire :: (EventTrigger t a,a) -> [DSum (EventTrigger t)]
       fire (et,a) = [et :=> a]
   f <- fireEvents fire

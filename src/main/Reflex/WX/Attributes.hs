@@ -111,6 +111,8 @@ module Reflex.WX.Attributes ( Selecting (..)
                             , Sized (..)
                             ) where
 
+import Data.Typeable
+
 import qualified Graphics.UI.WX as W
 
 import Reflex
@@ -135,7 +137,8 @@ class Reactive t c where
 
 -- TODO add reactive-based events
 
-class Textual t c w where
+-- Yes, we need the Typeable hack...
+class Typeable w => Textual t c w where
   text :: AttrC t c w String
 
 class Literate t c w where
