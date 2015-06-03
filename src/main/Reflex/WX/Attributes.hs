@@ -109,6 +109,16 @@ module Reflex.WX.Attributes ( Selecting (..)
                             , Checkable (..)
                             , Pictured (..)
                             , Sized (..)
+
+                            , Aligned (..)
+
+                            , W.Align (..)
+
+                            , Wrapped (..)
+
+                            , W.Wrap (..)
+
+                            , Sorted (..)
                             ) where
 
 import Data.Typeable
@@ -217,3 +227,12 @@ class Sized t c w where
 class HasDefault t c where
   defaultButton :: AttrC t c (Button ())
 -}
+
+class Aligned t c w where
+  alignment :: AttrC t c w W.Align -- Create only
+
+class Wrapped t c w where
+  wrap :: AttrC t c w W.Wrap -- Create only
+
+class Sorted t c w where
+  sorted :: AttrC t c w Bool -- Create only

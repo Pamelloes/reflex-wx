@@ -27,16 +27,27 @@ module Reflex.WX.Controls ( Window
 
                           , Button
                           , button
+                          , smallButton
+                          , BitmapButton
+                          , bitmapButton
 
                           , TextCtrl
                           , entry
                           , textEntry
                           , textCtrl
+                          , processEnter
+                          , processTab
 
                           , StaticText
                           , staticText
                           , Label
                           , label
+
+                          , CheckBox
+                          , checkBox
+
+                          , Choice
+                          , choice
                           ) where
 
 import Control.Monad.Fix
@@ -192,6 +203,8 @@ panel :: (MonadComponent t m) =>
          [Prop t (W.Panel ())] -> m a -> m (Panel t (),a)
 panel = wrapWF W.panel
 
+--TODO Form?
+
 -- ScrolledWindow
 type ScrolledWindow t a = Component t (W.ScrolledWindow a)
 
@@ -210,8 +223,21 @@ button :: (MonadComponent t m) =>
           [Prop t (W.Button ())] -> m (Button t ())
 button = wrapWC W.button
 
+smallButton :: (MonadComponent t m) => 
+               [Prop t (W.Button ())] -> m (Button t ())
+smallButton = wrapWC W.smallButton
+
 instance Typeable a => Commanding t (Button t a) where
   command = wrapEvent W.command
+
+type BitmapButton t a = Component t (W.BitmapButton a)
+
+bitmapButton :: (MonadComponent t m) => 
+                [Prop t (W.BitmapButton ())] -> m (BitmapButton t ())
+bitmapButton = wrapWC W.bitmapButton
+
+instance Pictured t (Component t) (W.BitmapButton a) where
+  picture = wrapAttr W.picture
 
 -- TextCtrl
 type TextCtrl t a = Component t (W.TextCtrl a)
@@ -228,6 +254,23 @@ textCtrl :: (MonadComponent t m) =>
             [Prop t (W.TextCtrl ())] -> m (TextCtrl t ())
 textCtrl = wrapWC W.textCtrl
 
+processEnter :: Attr t (W.TextCtrl a) Bool
+processEnter = wrapAttr W.processEnter
+
+processTab :: Attr t (W.TextCtrl a) Bool
+processTab = wrapAttr W.processTab
+
+instance Aligned t (Component t) (W.TextCtrl a) where
+  alignment = wrapAttr W.alignment
+instance Wrapped t (Component t) (W.TextCtrl a) where
+  wrap = wrapAttr W.wrap
+instance Typeable a => Commanding t (TextCtrl t a) where
+  command = wrapEvent W.command
+instance Typeable a => Updating t (TextCtrl t a) where
+  update c = do
+               t <- get text c
+               return $ fmap (const ()) (updated t)
+
 -- StaticText
 type StaticText t a = Component t (W.StaticText a)
 
@@ -240,3 +283,31 @@ type Label t a = StaticText t a
 label :: (MonadComponent t m) => 
          [Prop t (W.StaticText ())] -> m (Label t ())
 label = staticText
+
+-- CheckBox
+type CheckBox t a = Component t (W.CheckBox a)
+
+checkBox :: (MonadComponent t m) => 
+            [Prop t (W.CheckBox ())] -> m (CheckBox t ())
+checkBox = wrapWC W.checkBox
+
+instance Typeable a => Commanding t (CheckBox t a) where
+  command = wrapEvent W.command
+instance Checkable t (Component t) (W.CheckBox a) where
+  checkable = wrapAttr W.checkable
+  checked   = wrapAttr W.checked
+
+-- Choice
+type Choice t a = Component t (W.Choice a)
+
+choice :: (MonadComponent t m) => 
+          [Prop t (W.Choice ())] -> m (Choice t ())
+choice = wrapWC W.choice
+
+instance Sorted t (Component t) (W.Choice a) where
+  sorted = wrapAttr W.sorted
+instance Selecting t (Choice t ()) where
+  select = wrapEvent W.select
+instance Selection t (Component t) (W.Choice ()) where
+  selection = wrapAttr W.selection
+-- TODO Items
