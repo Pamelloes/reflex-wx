@@ -129,21 +129,21 @@ import Reflex
 import Reflex.WX.Class
 
 class Selecting t c where
-  select :: forall m. MonadComponent t m => c -> m (Event t ())
+  select :: forall m. MonadWidget t m => c -> m (Event t ())
 
 class Commanding t c where
-  command :: forall m. MonadComponent t m => c -> m (Event t ())
+  command :: forall m. MonadWidget t m => c -> m (Event t ())
 
 class Updating t c where
-  update :: forall m. MonadComponent t m => c -> m (Event t ())
+  update :: forall m. MonadWidget t m => c -> m (Event t ())
 
 class Reactive t c where
-  mouse    :: forall m. MonadComponent t m => c -> m (Event t W.EventMouse)
-  keyboard :: forall m. MonadComponent t m => c -> m (Event t W.EventKey)
-  closing  :: forall m. MonadComponent t m => c -> m (Event t ())
-  resize   :: forall m. MonadComponent t m => c -> m (Event t ())
-  focus    :: forall m. MonadComponent t m => c -> m (Event t Bool)
-  activate :: forall m. MonadComponent t m => c -> m (Event t Bool)
+  mouse    :: forall m. MonadWidget t m => c -> m (Event t W.EventMouse)
+  keyboard :: forall m. MonadWidget t m => c -> m (Event t W.EventKey)
+  closing  :: forall m. MonadWidget t m => c -> m (Event t ())
+  resize   :: forall m. MonadWidget t m => c -> m (Event t ())
+  focus    :: forall m. MonadWidget t m => c -> m (Event t Bool)
+  activate :: forall m. MonadWidget t m => c -> m (Event t Bool)
 
 -- TODO add reactive-based events
 

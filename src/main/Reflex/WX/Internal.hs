@@ -27,7 +27,7 @@ import Reflex
 import Reflex.Host.Class
 import Reflex.WX.Class hiding (get)
 
-data AnyComp t = forall w. (W.Widget w) => AC (Component t w)
+data AnyComp t = forall w. (W.Widget w) => AC (Widget t w)
 data ECRec t = forall w a. (Typeable w,Eq w,Typeable (EventMap a)) => 
                ECR (W.Event w a,w) (Event t (EventMap a))
 
@@ -43,7 +43,7 @@ findEvent e w ((ECR (e1,w1) a):rs)
         m = W.attrName (W.on e1)
 findEvent e w (_:rs) = findEvent e w rs
 
-data ComponentState t = ComponentState {
+data WidgetState t = WidgetState {
   mvar    :: TChan [DSum (EventTrigger t)],
   parent  :: AnyWindow,
   parents :: [AnyWindow],
@@ -51,54 +51,52 @@ data ComponentState t = ComponentState {
   ecache  :: [ECRec t]
 }
 
-type ComponentInternal t m = StateT (ComponentState t) m
-
-newtype ComponentM t m a = ComponentM { 
-  unCM :: ComponentInternal t m a
+newtype WidgetM t m a = WidgetM { 
+  unWM :: StateT (WidgetState t) m a
 } deriving (Functor, Applicative, Monad, MonadIO, MonadFix, Typeable)
-instance MonadSample t m => MonadSample t (ComponentM t m) where
-  sample = ComponentM . lift . sample
-instance MonadHold t m => MonadHold t (ComponentM t m) where
-  hold a = ComponentM . lift . (hold a)
+instance MonadSample t m => MonadSample t (WidgetM t m) where
+  sample = WidgetM . lift . sample
+instance MonadHold t m => MonadHold t (WidgetM t m) where
+  hold a = WidgetM . lift . (hold a)
 instance MonadReflexCreateTrigger t m =>
-         MonadReflexCreateTrigger t (ComponentM t m) where
-  newEventWithTrigger = ComponentM . lift . newEventWithTrigger
+         MonadReflexCreateTrigger t (WidgetM t m) where
+  newEventWithTrigger = WidgetM . lift . newEventWithTrigger
 {-
-instance MonadReflexHost t m => MonadReflexHost t (ComponentM t m) where
-  fireEventsAndRead dm a = ComponentM . lift $ fireEventsAndRead dm a
-  subscribeEvent         = ComponentM . lift . subscribeEvent
-  runFrame               = ComponentM . lift . runFrame
-  runHostFrame           = ComponentM . lift . runHostFrame
+instance MonadReflexHost t m => MonadReflexHost t (WidgetM t m) where
+  fireEventsAndRead dm a = WidgetM . lift $ fireEventsAndRead dm a
+  subscribeEvent         = WidgetM . lift . subscribeEvent
+  runFrame               = WidgetM . lift . runFrame
+  runHostFrame           = WidgetM . lift . runHostFrame
 -}
 instance (Typeable t, Reflex t, MonadIO m, MonadHold t m
          ,MonadReflexCreateTrigger t m, MonadFix m
-         ) => MonadComponent t (ComponentM t m) where
+         ) => MonadWidget t (WidgetM t m) where
   askParent        = do
-                       ComponentState{parent=p} <- ComponentM $ get
+                       WidgetState{parent=p} <- WidgetM get
                        return p
-  pushParent p     = ComponentM $ modify (\(s@ComponentState{
-                                               parent=q,
-                                               parents=ps
-                                           }) -> s{parent=p,parents=q:ps})
+  pushParent p     = WidgetM $ modify (\(s@WidgetState{
+                                            parent=q,
+                                            parents=ps
+                                        }) -> s{parent=p,parents=q:ps})
   popParent        = do
-                       s@(ComponentState{parent=q,parents=p:ps})<-ComponentM$get
-                       ComponentM$put s{parent=p,parents=ps}
+                       s@(WidgetState{parent=q,parents=p:ps}) <- WidgetM get
+                       WidgetM $ put s{parent=p,parents=ps}
                        return q
 
-  addIOEvent e     = ComponentM $ modify (\(s@ComponentState{ioEvent=i})->
-                                       s{ioEvent=e:i})
-  cacheEvent e c d = do
-                       s@(ComponentState{ecache=ec}) <- ComponentM $ get
-                       case findEvent e (widget c) ec of
+  addIOEvent e     = WidgetM $ modify (\(s@WidgetState{ioEvent=i}) ->
+                                        s{ioEvent=e:i})
+  cacheEvent e w d = do
+                       s@(WidgetState{ecache=ec}) <- WidgetM get
+                       case findEvent e (wxwidget w) ec of
                          Just ev -> return ev
                          Nothing -> do
                                       a <- d
-                                      ComponentM $ put s{
-                                        ecache = (ECR (e,widget c) a):ec
+                                      WidgetM $ put s{
+                                        ecache = (ECR (e,wxwidget w) a):ec
                                       }
                                       return a
   fireEvents f     = do
-                       ComponentState{mvar=v} <- ComponentM $ get
+                       WidgetState{mvar=v} <- WidgetM get
                        return $ \a -> atomically $ writeTChan v (f a)
 
 whileM :: Monad m => (m Bool) -> m a -> m ()
@@ -107,14 +105,14 @@ whileM c l = do
   if v then l >> whileM c l
   else return ()
 
-host :: ComponentM Spider (HostFrame Spider) a -> IO ()
-host c = W.start $ do
+host :: WidgetM Spider (HostFrame Spider) a -> IO ()
+host w = W.start $ do
   runSpiderHost $ do
     v <- liftIO $ atomically newTChan
-    let istate = ComponentState v undefined [] [] []
+    let istate = WidgetState v undefined [] [] []
 
-    (_,s) <- runHostFrame $ runStateT (unCM c) istate
-    let ComponentState{ioEvent = ie} = s
+    (_,s) <- runHostFrame $ runStateT (unWM w) istate
+    let WidgetState{ioEvent = ie} = s
 
     ieh <- subscribeEvent $ mergeWith (>>) ie
     whileM (liftIO W.wxcAppGetTopWindow >>= return . (/=W.objectNull)) $ do
