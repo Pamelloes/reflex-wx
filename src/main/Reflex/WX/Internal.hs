@@ -29,27 +29,25 @@ import Reflex.WX.Class hiding (get)
 
 data AnyComp t = forall w. (W.Widget w) => AC (Component t w)
 data ECRec t = forall w a. (Typeable w,Eq w,Typeable (EventMap a)) => 
-               ECR (W.Event w a,Component t w) (Event t (EventMap a))
+               ECR (W.Event w a,w) (Event t (EventMap a))
 
 findEvent :: (Typeable w,Eq w,Typeable t,Typeable (EventMap a)) =>
-             W.Event w a -> Component t w -> [ECRec t] 
+             W.Event w a -> w -> [ECRec t] 
                -> Maybe (Event t (EventMap a))
-findEvent e c []     = Nothing
-findEvent e c ((ECR (e1,c1) a):rs) 
-  | n == m = case D.fromDynamic (D.toDyn (c1,a)) of
-               Just (x,y)  -> if c == x then Just y else findEvent e c rs
-               Nothing     -> findEvent e c rs
+findEvent e w []     = Nothing
+findEvent e w ((ECR (e1,w1) a):rs) 
+  | n == m = case D.fromDynamic (D.toDyn (w1,a)) of
+               Just (x,y)  -> if w == x then Just y else findEvent e w rs
+               Nothing     -> findEvent e w rs
   where n = W.attrName (W.on e)
         m = W.attrName (W.on e1)
-findEvent e c (_:rs) = findEvent e c rs
+findEvent e w (_:rs) = findEvent e w rs
 
 data ComponentState t = ComponentState {
   mvar    :: TChan [DSum (EventTrigger t)],
   parent  :: AnyWindow,
+  parents :: [AnyWindow],
   ioEvent :: [Event t (IO ())],
-  lay     :: [W.Layout] -> W.Layout,
-  comp    :: [AnyComp t],
-  compst  :: [(AnyWindow,[W.Layout]->W.Layout,[AnyComp t])],
   ecache  :: [ECRec t]
 }
 
@@ -75,35 +73,33 @@ instance MonadReflexHost t m => MonadReflexHost t (ComponentM t m) where
 instance (Typeable t, Reflex t, MonadIO m, MonadHold t m
          ,MonadReflexCreateTrigger t m, MonadFix m
          ) => MonadComponent t (ComponentM t m) where
-  askParent         = do
-                         ComponentState{parent=p} <- ComponentM $ get
-                         return p
-  addIOEvent e      = ComponentM $ modify (\(s@ComponentState{ioEvent=i})->
-                                        s{ioEvent=e:i})
+  askParent        = do
+                       ComponentState{parent=p} <- ComponentM $ get
+                       return p
+  pushParent p     = ComponentM $ modify (\(s@ComponentState{
+                                               parent=q,
+                                               parents=ps
+                                           }) -> s{parent=p,parents=q:ps})
+  popParent        = do
+                       s@(ComponentState{parent=q,parents=p:ps})<-ComponentM$get
+                       ComponentM$put s{parent=p,parents=ps}
+                       return q
 
-  pushComponents n  = ComponentM $ modify f
-    where f (s@ComponentState{parent=p,lay=l,comp=c,compst=cs})
-            = s{parent=n,lay=W.row 10,comp=[],compst=(p,l,c):cs}
-  setLayout l       = ComponentM $ modify (\s->s{lay=l})
-  addComponent c    = ComponentM $ modify (\(s@ComponentState{comp=i})->
-                                          s{comp=(AC c):i})
-  popComponents     = do
-                        s@(ComponentState _ _ _ l c (h:r) _) <- ComponentM $ get
-                        let (p,m,n)=h
-                        let ls = fmap (\(AC (Component (l,_)))->W.widget l) c
-                        ComponentM $ put s{parent=p,lay=m,comp=n,compst=r}
-                        return $ l (reverse ls)
-  cacheEvent e c d  = do
-                        s@(ComponentState{ecache=ec}) <- ComponentM $ get
-                        case findEvent e c ec of
-                          Just ev -> return ev
-                          Nothing -> do
-                                       a <- d
-                                       ComponentM$put s{ecache=(ECR (e,c) a):ec}
-                                       return a
-  fireEvents f      = do
-                        ComponentState{mvar=v} <- ComponentM $ get
-                        return $ \a -> atomically $ writeTChan v (f a)
+  addIOEvent e     = ComponentM $ modify (\(s@ComponentState{ioEvent=i})->
+                                       s{ioEvent=e:i})
+  cacheEvent e c d = do
+                       s@(ComponentState{ecache=ec}) <- ComponentM $ get
+                       case findEvent e (widget c) ec of
+                         Just ev -> return ev
+                         Nothing -> do
+                                      a <- d
+                                      ComponentM $ put s{
+                                        ecache = (ECR (e,widget c) a):ec
+                                      }
+                                      return a
+  fireEvents f     = do
+                       ComponentState{mvar=v} <- ComponentM $ get
+                       return $ \a -> atomically $ writeTChan v (f a)
 
 whileM :: Monad m => (m Bool) -> m a -> m ()
 whileM c l = do
@@ -115,7 +111,7 @@ host :: ComponentM Spider (HostFrame Spider) a -> IO ()
 host c = W.start $ do
   runSpiderHost $ do
     v <- liftIO $ atomically newTChan
-    let istate = ComponentState v undefined [] undefined [] [] []
+    let istate = ComponentState v undefined [] [] []
 
     (_,s) <- runHostFrame $ runStateT (unCM c) istate
     let ComponentState{ioEvent = ie} = s

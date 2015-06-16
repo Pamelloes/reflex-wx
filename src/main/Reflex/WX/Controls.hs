@@ -61,6 +61,7 @@ import qualified Graphics.UI.WXCore as W
 import Reflex
 import Reflex.WX.Class
 import Reflex.WX.Attributes
+import Reflex.WX.Layout
 
 wrapWC :: (W.Widget w, MonadComponent t m) => 
           (forall a. W.Window a -> [W.Prop w] -> IO(w)) -> [Prop t w] 
@@ -69,9 +70,7 @@ wrapWC f p = do
   (AW w) <- askParent
   rec prop <- sequence $ fmap (unwrapProp x) p
       x    <- liftIO $ f w prop
-  let c = Component (x,p)
-  addComponent c
-  return c
+  return $ Component (x,p)
 
 wrapWF :: forall w t m b. (W.Form (W.Window w), MonadComponent t m) => 
           (forall a. W.Window a -> [W.Prop (W.Window w)] -> IO (W.Window w))

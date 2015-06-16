@@ -51,9 +51,11 @@ data PropC t c w = forall a. Typeable a => AttrC t c w a := a
 type Attr t w a = AttrC t (Component t) w a
 type Prop t w = PropC t (Component t) w
 
-newtype Component t w = Component (w,[Prop t w])
-instance Eq w => Eq (Component t w) where
-  (Component (w,_)) == (Component (x,_)) = w == x
+data Component t w = Component {
+  widget :: w,
+  props  :: [Prop t w],
+  layout :: W.Layout
+}
 
 type family EventMap (k:: * ) :: *
 
@@ -63,13 +65,10 @@ class (Typeable t, Reflex t, MonadIO m, MonadHold t m
       ,MonadReflexCreateTrigger t m, MonadFix m
       ) => MonadComponent t m | m -> t where
   askParent       :: m AnyWindow
+  pushParent      :: AnyWindow -> m ()
+  popParent       :: m AnyWindow
+
   addIOEvent      :: Event t (IO ()) -> m ()
-
-  pushComponents  ::  AnyWindow -> m ()
-  setLayout       :: ([W.Layout] -> W.Layout) -> m ()
-  addComponent    :: (W.Widget w) => Component t w -> m ()
-  popComponents   :: m (W.Layout)
-
   cacheEvent      :: (Typeable w,Eq w,Typeable (EventMap a)) => 
                       W.Event w a -> Component t w -> m (Event t (EventMap a)) 
                         -> m (Event t (EventMap a))
@@ -94,13 +93,13 @@ find a (_:r) = find a r
 
 dget :: forall a t m w. (Typeable a, MonadComponent t m) => 
        W.Attr w a -> Component t w -> m (Dynamic t a)
-dget a (Component (w,p)) = do
-  case find a p of
-    Just (Left c)  -> return $ constDyn c
-    Just (Right d) -> return d
+dget a c  = do
+  case find a (props c) of
+    Just (Left l)  -> return $ constDyn l
+    Just (Right r) -> return r
     Nothing        -> do
-                        c <- liftIO $ W.get w a
-                        return $ constDyn c
+                        n <- liftIO $ W.get (widget c) a
+                        return $ constDyn n
 
 wrapAttr :: Typeable a => W.Attr w a -> Attr t w a
 wrapAttr a = Attr (dget a) a
@@ -115,23 +114,23 @@ unwrapProp w (a :~ v) = do
 type instance EventMap (IO ()) = ()
 wrapEvent :: forall t m w. (Typeable w,Eq w,MonadComponent t m) => 
              W.Event w (IO ()) -> Component t w -> m (Event t ()) 
-wrapEvent e c@(Component (w,_)) = cacheEvent e c $ do
+wrapEvent e c = cacheEvent e c $ do
   let fire :: EventTrigger t () -> [DSum (EventTrigger t)]
       fire et = [et :=> ()]
   f <- fireEvents fire
   n <- newEventWithTrigger $ \et -> do
-         W.set w [W.on e W.:= f et]
-         return $ W.set w [W.on e W.:= W.propagateEvent]
+         W.set (widget c) [W.on e W.:= f et]
+         return $ W.set (widget c) [W.on e W.:= W.propagateEvent]
   return n
 
 type instance EventMap (a -> IO ()) = a
 wrapEvent1 :: forall t m w a. (Typeable a,Typeable w,Eq w,MonadComponent t m) => 
              W.Event w (a -> IO ()) -> Component t w -> m (Event t a) 
-wrapEvent1 e c@(Component (w,_)) = cacheEvent e c $ do
+wrapEvent1 e c = cacheEvent e c $ do
   let fire :: (EventTrigger t a,a) -> [DSum (EventTrigger t)]
       fire (et,a) = [et :=> a]
   f <- fireEvents fire
   n <- newEventWithTrigger $ \et -> do
-         W.set w [W.on e W.:= \a -> f (et,a)]
-         return $ W.set w [W.on e W.:= \_ -> W.propagateEvent]
+         W.set (widget c) [W.on e W.:= \a -> f (et,a)]
+         return $ W.set (widget c) [W.on e W.:= \_ -> W.propagateEvent]
   return n

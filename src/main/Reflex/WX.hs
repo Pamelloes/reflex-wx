@@ -11,6 +11,7 @@ module Reflex.WX ( module Reflex
                  , module Reflex.WX.Attributes
                  , module Reflex.WX.Controls
                  , module Reflex.WX.Internal
+                 , module Reflex.WX.Layout
                  ) where
 
 import Reflex hiding (select) -- Alternatively, rename Attributes.select
@@ -18,3 +19,4 @@ import Reflex.WX.Class
 import Reflex.WX.Attributes
 import Reflex.WX.Controls
 import Reflex.WX.Internal
+import Reflex.WX.Layout
